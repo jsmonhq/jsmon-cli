@@ -4,7 +4,23 @@ A command-line tool for interacting with the JSMon API to scan URLs, domains, an
 
 ## Installation
 
+### Using go install (Recommended)
+
+Install directly from the repository:
+
 ```bash
+go install github.com/jsmonhq/jsmon-cli@latest
+```
+
+After installation, make sure `$GOPATH/bin` (or `$HOME/go/bin` by default) is in your `PATH`. The binary will be available as `jsmon-cli`.
+
+### Building from source
+
+For development or custom builds:
+
+```bash
+git clone https://github.com/jsmonhq/jsmon-cli.git
+cd jsmon-cli
 go build -o jsmon-cli
 ```
 

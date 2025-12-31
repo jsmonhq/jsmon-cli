@@ -16,6 +16,20 @@ func main() {
 	originalArgs := make([]string, len(os.Args))
 	copy(originalArgs, os.Args)
 
+	// Check for -duc flag early (disable update check)
+	disableUpdateCheck := false
+	for _, arg := range originalArgs {
+		if arg == "-duc" || arg == "--disable-update-check" {
+			disableUpdateCheck = true
+			break
+		}
+	}
+
+	// Check for updates unless disabled
+	if !disableUpdateCheck {
+		checkForUpdate()
+	}
+
 	// Parse headers from command line arguments first (before flag.Parse)
 	// This extracts -H flags and removes them from os.Args so flag.Parse() doesn't see them
 	headers, filteredArgs := parseHeadersAndFilterArgs()
@@ -629,7 +643,8 @@ func showUsage() {
 	fmt.Fprintf(os.Stderr, "  -H <input>                                  Custom HTTP headers to send along with request to scan\n")
 	fmt.Fprintf(os.Stderr, "  -resume                                     Resume scan using resume.config\n")
 	fmt.Fprintf(os.Stderr, "                                              (resumes from last scan failed due to force stop or API limits)\n")
-	fmt.Fprintf(os.Stderr, "  -silent                                     Silent the logo\n\n")
+	fmt.Fprintf(os.Stderr, "  -silent                                     Silent the logo\n")
+	fmt.Fprintf(os.Stderr, "  -duc, --disable-update-check                Disable automatic update check on startup\n\n")
 
 	fmt.Fprintf(os.Stderr, "Scans:\n")
 	fmt.Fprintf(os.Stderr, "  -count                                      Show the counts of reconnaissance data and secrets count\n")
