@@ -103,35 +103,44 @@ func HandleFileUpload(filePath, workspaceID, apiKey string, resumeFile string, h
 		// Upload URL
 		err := client.UploadURL(jsURL, workspaceID)
 		if err != nil {
-			// Check if it's an insufficient limits error
-			if apiErr, ok := err.(*api.APIError); ok && apiErr.IsInsufficientLimitsError() {
-				fmt.Fprintf(os.Stderr, "\n%s[!] Insufficient scan limits. Saving resume state...%s\n", ColorRed, ColorReset)
-				if resumeState != nil {
-					if saveErr := resumeState.Save(); saveErr != nil {
-						fmt.Fprintf(os.Stderr, "%s[!] Failed to save resume state: %v%s\n", ColorRed, saveErr, ColorReset)
-					} else {
-						fmt.Fprintf(os.Stderr, "%s[!] Resume state saved to: %s%s\n", ColorGreen, resumeState.Filename, ColorReset)
-						fmt.Fprintf(os.Stderr, "%s[!] Please add scan limits and resume with: -resume %s%s\n", ColorGreen, resumeState.Filename, ColorReset)
-					}
-				} else {
-					fmt.Fprintf(os.Stderr, "%s[!] Insufficient scan limits%s\n", ColorRed, ColorReset)
-					fmt.Fprintf(os.Stderr, "%s[!] Please add scan limits and try again%s\n", ColorRed, ColorReset)
+			// Check if it's an APIError
+			if apiErr, ok := err.(*api.APIError); ok {
+				// Check for authentication error (wrong or missing API key)
+				if apiErr.IsAuthError() {
+					fmt.Fprintf(os.Stderr, "Error: API key is invalid or not configured. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
+					os.Exit(1)
 				}
-				os.Exit(1)
-			}
 
-			// Check if it's a rate limit error
-			if apiErr, ok := err.(*api.APIError); ok && apiErr.IsRateLimitError() {
-				fmt.Fprintf(os.Stderr, "\n%s[!] Rate limit reached. Saving resume state...%s\n", ColorRed, ColorReset)
-				if resumeState != nil {
-					if saveErr := resumeState.Save(); saveErr != nil {
-						fmt.Fprintf(os.Stderr, "%s[!] Failed to save resume state: %v%s\n", ColorRed, saveErr, ColorReset)
+				// Check if it's an insufficient limits error
+				if apiErr.IsInsufficientLimitsError() {
+					fmt.Fprintf(os.Stderr, "\n%s[!] Insufficient scan limits. Saving resume state...%s\n", ColorRed, ColorReset)
+					if resumeState != nil {
+						if saveErr := resumeState.Save(); saveErr != nil {
+							fmt.Fprintf(os.Stderr, "%s[!] Failed to save resume state: %v%s\n", ColorRed, saveErr, ColorReset)
+						} else {
+							fmt.Fprintf(os.Stderr, "%s[!] Resume state saved to: %s%s\n", ColorGreen, resumeState.Filename, ColorReset)
+							fmt.Fprintf(os.Stderr, "%s[!] Please add scan limits and resume with: -resume %s%s\n", ColorGreen, resumeState.Filename, ColorReset)
+						}
 					} else {
-						fmt.Fprintf(os.Stderr, "%s[!] Resume state saved to: %s%s\n", ColorGreen, resumeState.Filename, ColorReset)
-						fmt.Fprintf(os.Stderr, "%s[!] Resume with: -resume %s%s\n", ColorGreen, resumeState.Filename, ColorReset)
+						fmt.Fprintf(os.Stderr, "%s[!] Insufficient scan limits%s\n", ColorRed, ColorReset)
+						fmt.Fprintf(os.Stderr, "%s[!] Please add scan limits and try again%s\n", ColorRed, ColorReset)
 					}
+					os.Exit(1)
 				}
-				os.Exit(1)
+
+				// Check if it's a rate limit error
+				if apiErr.IsRateLimitError() {
+					fmt.Fprintf(os.Stderr, "\n%s[!] Rate limit reached. Saving resume state...%s\n", ColorRed, ColorReset)
+					if resumeState != nil {
+						if saveErr := resumeState.Save(); saveErr != nil {
+							fmt.Fprintf(os.Stderr, "%s[!] Failed to save resume state: %v%s\n", ColorRed, saveErr, ColorReset)
+						} else {
+							fmt.Fprintf(os.Stderr, "%s[!] Resume state saved to: %s%s\n", ColorGreen, resumeState.Filename, ColorReset)
+							fmt.Fprintf(os.Stderr, "%s[!] Resume with: -resume %s%s\n", ColorGreen, resumeState.Filename, ColorReset)
+						}
+					}
+					os.Exit(1)
+				}
 			}
 
 			// Regular error handling

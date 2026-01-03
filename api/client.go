@@ -47,6 +47,22 @@ func (e *APIError) IsInsufficientLimitsError() bool {
 			strings.Contains(message, "limit") && strings.Contains(message, "exhausted"))
 }
 
+// IsAuthError checks if the error is an authentication error (wrong or missing API key)
+func (e *APIError) IsAuthError() bool {
+	// Check for 401 (Unauthorized) or 403 (Forbidden) status codes
+	if e.Status == 401 || e.Status == 403 {
+		return true
+	}
+	// Also check for authentication-related messages
+	message := strings.ToLower(e.Message)
+	return strings.Contains(message, "wrong api key") ||
+		strings.Contains(message, "invalid api key") ||
+		strings.Contains(message, "unauthorized") ||
+		strings.Contains(message, "forbidden") ||
+		strings.Contains(message, "authentication failed") ||
+		strings.Contains(message, "api key") && (strings.Contains(message, "invalid") || strings.Contains(message, "wrong"))
+}
+
 const APIBaseURL = "https://api.jsmon.sh/api/v2"
 
 // Client handles API communication
