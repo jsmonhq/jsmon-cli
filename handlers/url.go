@@ -18,6 +18,12 @@ func HandleURLUpload(jsURL, workspaceID, apiKey string, headers map[string]strin
 	if err != nil {
 		// Check if it's an APIError to extract URL and message
 		if apiErr, ok := err.(*api.APIError); ok {
+			// Check for authentication error (wrong or missing API key)
+			if apiErr.IsAuthError() {
+				fmt.Fprintf(os.Stderr, "Error: API key is invalid or not configured. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
+				os.Exit(1)
+			}
+
 			// Check for insufficient limits error
 			if apiErr.IsInsufficientLimitsError() {
 				fmt.Fprintf(os.Stderr, "%sInsufficient scan limits%s\n", ColorRed, ColorReset)

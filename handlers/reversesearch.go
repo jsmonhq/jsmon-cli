@@ -84,6 +84,11 @@ func HandleReverseSearch(workspaceID, apiKey string, headers map[string]string, 
 
 	response, err := client.ReverseSearch(workspaceID, field, searchValue)
 	if err != nil {
+		// Check for authentication error (wrong or missing API key)
+		if apiErr, ok := err.(*api.APIError); ok && apiErr.IsAuthError() {
+			fmt.Fprintf(os.Stderr, "Error: API key is invalid or not configured. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
+			os.Exit(1)
+		}
 		fmt.Fprintf(os.Stderr, "%sError performing reverse search: %v%s\n", ColorRed, err, ColorReset)
 		os.Exit(1)
 	}

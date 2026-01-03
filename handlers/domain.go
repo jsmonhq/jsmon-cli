@@ -22,18 +22,27 @@ func HandleDomainScan(domain, workspaceID, apiKey string, resumeFile string, hea
 	client := api.NewClient(apiKey, headers)
 	err := client.ScanDomain(domain, workspaceID)
 	if err != nil {
-		// Check if it's an insufficient limits error
-		if apiErr, ok := err.(*api.APIError); ok && apiErr.IsInsufficientLimitsError() {
-			fmt.Fprintf(os.Stderr, "%sInsufficient scan limits%s\n", ColorRed, ColorReset)
-			fmt.Fprintf(os.Stderr, "%sPlease add scan limits and try again%s\n", ColorRed, ColorReset)
-			os.Exit(1)
-		}
+		// Check if it's an APIError
+		if apiErr, ok := err.(*api.APIError); ok {
+			// Check for authentication error (wrong or missing API key)
+			if apiErr.IsAuthError() {
+				fmt.Fprintf(os.Stderr, "Error: API key is invalid or not configured. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
+				os.Exit(1)
+			}
 
-		// Check if it's a rate limit error
-		if apiErr, ok := err.(*api.APIError); ok && apiErr.IsRateLimitError() {
-			fmt.Fprintf(os.Stderr, "%sRate limit reached for domain: %s%s\n", ColorRed, domain, ColorReset)
-			fmt.Fprintf(os.Stderr, "%sPlease try again later%s\n", ColorRed, ColorReset)
-			os.Exit(1)
+			// Check if it's an insufficient limits error
+			if apiErr.IsInsufficientLimitsError() {
+				fmt.Fprintf(os.Stderr, "%sInsufficient scan limits%s\n", ColorRed, ColorReset)
+				fmt.Fprintf(os.Stderr, "%sPlease add scan limits and try again%s\n", ColorRed, ColorReset)
+				os.Exit(1)
+			}
+
+			// Check if it's a rate limit error
+			if apiErr.IsRateLimitError() {
+				fmt.Fprintf(os.Stderr, "%sRate limit reached for domain: %s%s\n", ColorRed, domain, ColorReset)
+				fmt.Fprintf(os.Stderr, "%sPlease try again later%s\n", ColorRed, ColorReset)
+				os.Exit(1)
+			}
 		}
 
 		// Regular error handling - always show the actual error
