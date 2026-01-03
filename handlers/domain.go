@@ -17,8 +17,6 @@ func HandleDomainScan(domain, workspaceID, apiKey string, resumeFile string, hea
 	// Domain scanning does not support resume functionality
 	// Resume is only available for file scanning
 
-	fmt.Printf("Scanning started for - %s\n", domain)
-
 	client := api.NewClient(apiKey, headers)
 	err := client.ScanDomain(domain, workspaceID)
 	if err != nil {
