@@ -13,9 +13,9 @@ import (
 
 // FileScanResult represents the result of a file scan
 type FileScanResult struct {
-	Success []string                 `json:"success"`
-	Failed  []map[string]string      `json:"failed"`
-	Summary map[string]interface{}   `json:"summary"`
+	Success []string               `json:"success"`
+	Failed  []map[string]string    `json:"failed"`
+	Summary map[string]interface{} `json:"summary"`
 }
 
 // HandleFileUpload uploads a file for scanning
@@ -85,7 +85,7 @@ func HandleFileUpload(filePath, workspaceID, apiKey string, resumeFile string, h
 	successCount := 0
 	errorCount := 0
 	lastProcessedURL := ""
-	
+
 	// Collect results for JSON output
 	var successURLs []string
 	var failedURLs []map[string]string
@@ -107,7 +107,7 @@ func HandleFileUpload(filePath, workspaceID, apiKey string, resumeFile string, h
 			if apiErr, ok := err.(*api.APIError); ok {
 				// Check for authentication error (wrong or missing API key)
 				if apiErr.IsAuthError() {
-					fmt.Fprintf(os.Stderr, "Error: API key is invalid or not configured. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
+					fmt.Fprintf(os.Stderr, "Error: API key is invalid. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
 					os.Exit(1)
 				}
 
@@ -198,7 +198,7 @@ func HandleFileUpload(filePath, workspaceID, apiKey string, resumeFile string, h
 		if resumeFile == "" {
 			// Save final state before deleting (for non-resume scans)
 			resumeState.Save()
-		resume.Delete(resumeState.Filename)
+			resume.Delete(resumeState.Filename)
 		} else {
 			// Save final state when resuming (keep the file)
 			resumeState.Save()

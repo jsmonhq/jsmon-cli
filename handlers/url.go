@@ -20,7 +20,7 @@ func HandleURLUpload(jsURL, workspaceID, apiKey string, headers map[string]strin
 		if apiErr, ok := err.(*api.APIError); ok {
 			// Check for authentication error (wrong or missing API key)
 			if apiErr.IsAuthError() {
-				fmt.Fprintf(os.Stderr, "Error: API key is invalid or not configured. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
+				fmt.Fprintf(os.Stderr, "Error: API key is invalid. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
 				os.Exit(1)
 			}
 
