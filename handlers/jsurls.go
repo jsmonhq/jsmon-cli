@@ -9,10 +9,10 @@ import (
 )
 
 // HandleJSURLs displays JS URLs for a workspace in JSON format
-func HandleJSURLs(workspaceID, apiKey string, headers map[string]string, page int, runID, search, status string) {
+func HandleJSURLs(workspaceID, apiKey string, headers map[string]string, page int, runID, search, status string, limit int) {
 	client := api.NewClient(apiKey, headers)
 
-	response, err := client.GetJSURLs(workspaceID, page, runID, search, status)
+	response, err := client.GetJSURLs(workspaceID, page, runID, search, status, limit)
 	if err != nil {
 		// Check for authentication error (wrong or missing API key)
 		if apiErr, ok := err.(*api.APIError); ok && apiErr.IsAuthError() {
@@ -40,5 +40,3 @@ func HandleJSURLs(workspaceID, apiKey string, headers map[string]string, page in
 
 	fmt.Println(string(jsonOutput))
 }
-
-

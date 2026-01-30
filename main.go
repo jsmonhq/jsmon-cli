@@ -16,6 +16,21 @@ func main() {
 	originalArgs := make([]string, len(os.Args))
 	copy(originalArgs, os.Args)
 
+	// Check for -up flag early (manual update check)
+	updateFlagProvided := false
+	for _, arg := range originalArgs {
+		if arg == "-up" || arg == "--update" {
+			updateFlagProvided = true
+			break
+		}
+	}
+
+	// If -up flag is provided, check for updates and exit
+	if updateFlagProvided {
+		checkAndUpdateCLI()
+		os.Exit(0)
+	}
+
 	// Check for -duc flag early (disable update check)
 	disableUpdateCheck := false
 	for _, arg := range originalArgs {
@@ -54,29 +69,29 @@ func main() {
 	for i, arg := range originalArgs {
 		if arg == "--urls" {
 			urlsFlagProvided = true
-			// Check if next argument is a value (starts with "page=")
-			if i+1 < len(originalArgs) && strings.HasPrefix(originalArgs[i+1], "page=") {
+			// Check if next argument is a value (contains "page=" or "limit=")
+			if i+1 < len(originalArgs) && (strings.Contains(originalArgs[i+1], "page=") || strings.Contains(originalArgs[i+1], "limit=")) {
 				urlsValue = originalArgs[i+1]
 			}
 		}
 		if arg == "--domains" {
 			domainsFlagProvided = true
-			// Check if next argument is a value (starts with "page=")
-			if i+1 < len(originalArgs) && strings.HasPrefix(originalArgs[i+1], "page=") {
+			// Check if next argument is a value (contains "page=" or "limit=")
+			if i+1 < len(originalArgs) && (strings.Contains(originalArgs[i+1], "page=") || strings.Contains(originalArgs[i+1], "limit=")) {
 				domainsValue = originalArgs[i+1]
 			}
 		}
 		if arg == "--files" {
 			filesFlagProvided = true
-			// Check if next argument is a value (starts with "page=")
-			if i+1 < len(originalArgs) && strings.HasPrefix(originalArgs[i+1], "page=") {
+			// Check if next argument is a value (contains "page=" or "limit=")
+			if i+1 < len(originalArgs) && (strings.Contains(originalArgs[i+1], "page=") || strings.Contains(originalArgs[i+1], "limit=")) {
 				filesValue = originalArgs[i+1]
 			}
 		}
 		if arg == "-secrets" {
 			secretsFlagProvided = true
-			// Check if next argument is a value (starts with "page=")
-			if i+1 < len(originalArgs) && strings.HasPrefix(originalArgs[i+1], "page=") {
+			// Check if next argument is a value (contains "page=" or "limit=")
+			if i+1 < len(originalArgs) && (strings.Contains(originalArgs[i+1], "page=") || strings.Contains(originalArgs[i+1], "limit=")) {
 				secretsValue = originalArgs[i+1]
 			}
 		}
@@ -123,33 +138,33 @@ func main() {
 		arg := filteredArgs[i]
 		if arg == "--urls" {
 			// Skip --urls flag
-			// Also skip the next arg if it's the page= value
-			if i+1 < len(filteredArgs) && strings.HasPrefix(filteredArgs[i+1], "page=") {
-				i++ // Skip the page= value
+			// Also skip the next arg if it contains page= or limit=
+			if i+1 < len(filteredArgs) && (strings.Contains(filteredArgs[i+1], "page=") || strings.Contains(filteredArgs[i+1], "limit=")) {
+				i++ // Skip the page=/limit= value
 			}
 			continue
 		}
 		if arg == "--domains" {
 			// Skip --domains flag
-			// Also skip the next arg if it's the page= value
-			if i+1 < len(filteredArgs) && strings.HasPrefix(filteredArgs[i+1], "page=") {
-				i++ // Skip the page= value
+			// Also skip the next arg if it contains page= or limit=
+			if i+1 < len(filteredArgs) && (strings.Contains(filteredArgs[i+1], "page=") || strings.Contains(filteredArgs[i+1], "limit=")) {
+				i++ // Skip the page=/limit= value
 			}
 			continue
 		}
 		if arg == "--files" {
 			// Skip --files flag
-			// Also skip the next arg if it's the page= value
-			if i+1 < len(filteredArgs) && strings.HasPrefix(filteredArgs[i+1], "page=") {
-				i++ // Skip the page= value
+			// Also skip the next arg if it contains page= or limit=
+			if i+1 < len(filteredArgs) && (strings.Contains(filteredArgs[i+1], "page=") || strings.Contains(filteredArgs[i+1], "limit=")) {
+				i++ // Skip the page=/limit= value
 			}
 			continue
 		}
 		if arg == "-secrets" {
 			// Skip -secrets flag
-			// Also skip the next arg if it's the page= value
-			if i+1 < len(filteredArgs) && strings.HasPrefix(filteredArgs[i+1], "page=") {
-				i++ // Skip the page= value
+			// Also skip the next arg if it contains page= or limit=
+			if i+1 < len(filteredArgs) && (strings.Contains(filteredArgs[i+1], "page=") || strings.Contains(filteredArgs[i+1], "limit=")) {
+				i++ // Skip the page=/limit= value
 			}
 			continue
 		}
@@ -178,8 +193,8 @@ func main() {
 			}
 			continue
 		}
-		// Skip page= value if it's not immediately after --urls, --domains, --files, or -secrets (shouldn't happen, but just in case)
-		if strings.HasPrefix(arg, "page=") && (urlsFlagProvided || domainsFlagProvided || filesFlagProvided || secretsFlagProvided) {
+		// Skip page=/limit= value if it's not immediately after --urls, --domains, --files, or -secrets (shouldn't happen, but just in case)
+		if (strings.Contains(arg, "page=") || strings.Contains(arg, "limit=")) && (urlsFlagProvided || domainsFlagProvided || filesFlagProvided || secretsFlagProvided) {
 			continue
 		}
 		// Skip field=... page=... value if it's not immediately after -recon (shouldn't happen, but just in case)
@@ -285,25 +300,34 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		// Parse page parameter (format: page=<number>), default to page=1 if not provided
+		// Parse page and limit parameters (format: "page=<number> limit=<number>"), default to page=1 and limit=100 if not provided
 		page := 1
+		limit := 100
 		if urlsValue != "" {
-			if strings.HasPrefix(urlsValue, "page=") {
-				pageStr := strings.TrimPrefix(urlsValue, "page=")
-				if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
-					page = parsedPage
-				} else {
-					fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use --urls page=<number> (e.g., --urls page=2)\n\n")
-					showUsage()
-					os.Exit(1)
+			parts := strings.Fields(urlsValue)
+			for _, part := range parts {
+				if strings.HasPrefix(part, "page=") {
+					pageStr := strings.TrimPrefix(part, "page=")
+					if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
+						page = parsedPage
+					} else {
+						fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use --urls \"page=<number>\" (e.g., --urls \"page=2\")\n\n")
+						showUsage()
+						os.Exit(1)
+					}
+				} else if strings.HasPrefix(part, "limit=") {
+					limitStr := strings.TrimPrefix(part, "limit=")
+					if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+						limit = parsedLimit
+					} else {
+						fmt.Fprintf(os.Stderr, "Error: Invalid limit format. Use --urls \"limit=<number>\" (e.g., --urls \"limit=50\")\n\n")
+						showUsage()
+						os.Exit(1)
+					}
 				}
-			} else {
-				fmt.Fprintf(os.Stderr, "Error: Invalid format. Use --urls page=<number> (e.g., --urls page=2)\n\n")
-				showUsage()
-				os.Exit(1)
 			}
 		}
-		handlers.HandleJSURLs(workspaceID, apiKey, headers, page, "", "", "")
+		handlers.HandleJSURLs(workspaceID, apiKey, headers, page, "", "", "", limit)
 	} else if domainsFlagProvided {
 		// Fetch domain scans
 		if apiKey == "" {
@@ -314,25 +338,34 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		// Parse page parameter (format: page=<number>), default to page=1 if not provided
+		// Parse page and limit parameters (format: "page=<number> limit=<number>"), default to page=1 and limit=100 if not provided
 		page := 1
+		limit := 100
 		if domainsValue != "" {
-			if strings.HasPrefix(domainsValue, "page=") {
-				pageStr := strings.TrimPrefix(domainsValue, "page=")
-				if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
-					page = parsedPage
-				} else {
-					fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use --domains page=<number> (e.g., --domains page=2)\n\n")
-					showUsage()
-					os.Exit(1)
+			parts := strings.Fields(domainsValue)
+			for _, part := range parts {
+				if strings.HasPrefix(part, "page=") {
+					pageStr := strings.TrimPrefix(part, "page=")
+					if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
+						page = parsedPage
+					} else {
+						fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use --domains \"page=<number>\" (e.g., --domains \"page=2\")\n\n")
+						showUsage()
+						os.Exit(1)
+					}
+				} else if strings.HasPrefix(part, "limit=") {
+					limitStr := strings.TrimPrefix(part, "limit=")
+					if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+						limit = parsedLimit
+					} else {
+						fmt.Fprintf(os.Stderr, "Error: Invalid limit format. Use --domains \"limit=<number>\" (e.g., --domains \"limit=50\")\n\n")
+						showUsage()
+						os.Exit(1)
+					}
 				}
-			} else {
-				fmt.Fprintf(os.Stderr, "Error: Invalid format. Use --domains page=<number> (e.g., --domains page=2)\n\n")
-				showUsage()
-				os.Exit(1)
 			}
 		}
-		handlers.HandleDomains(workspaceID, apiKey, headers, page, "", "", "", "", "", "", "100", "")
+		handlers.HandleDomains(workspaceID, apiKey, headers, page, "", "", "", "", "", "", fmt.Sprintf("%d", limit), "")
 	} else if filesFlagProvided {
 		// Fetch file scans
 		if apiKey == "" {
@@ -343,25 +376,34 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		// Parse page parameter (format: page=<number>), default to page=1 if not provided
+		// Parse page and limit parameters (format: "page=<number> limit=<number>"), default to page=1 and limit=100 if not provided
 		page := 1
+		limit := 100
 		if filesValue != "" {
-			if strings.HasPrefix(filesValue, "page=") {
-				pageStr := strings.TrimPrefix(filesValue, "page=")
-				if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
-					page = parsedPage
-				} else {
-					fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use --files page=<number> (e.g., --files page=2)\n\n")
-					showUsage()
-					os.Exit(1)
+			parts := strings.Fields(filesValue)
+			for _, part := range parts {
+				if strings.HasPrefix(part, "page=") {
+					pageStr := strings.TrimPrefix(part, "page=")
+					if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
+						page = parsedPage
+					} else {
+						fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use --files \"page=<number>\" (e.g., --files \"page=2\")\n\n")
+						showUsage()
+						os.Exit(1)
+					}
+				} else if strings.HasPrefix(part, "limit=") {
+					limitStr := strings.TrimPrefix(part, "limit=")
+					if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+						limit = parsedLimit
+					} else {
+						fmt.Fprintf(os.Stderr, "Error: Invalid limit format. Use --files \"limit=<number>\" (e.g., --files \"limit=50\")\n\n")
+						showUsage()
+						os.Exit(1)
+					}
 				}
-			} else {
-				fmt.Fprintf(os.Stderr, "Error: Invalid format. Use --files page=<number> (e.g., --files page=2)\n\n")
-				showUsage()
-				os.Exit(1)
 			}
 		}
-		handlers.HandleFileScans(workspaceID, apiKey, headers, page, "", "", "", "", "", "", "100", "")
+		handlers.HandleFileScans(workspaceID, apiKey, headers, page, "", "", "", "", "", "", fmt.Sprintf("%d", limit), "")
 	} else if secretsFlagProvided {
 		// Fetch secrets
 		if apiKey == "" {
@@ -372,25 +414,34 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		// Parse page parameter (format: page=<number>), default to page=1 if not provided
+		// Parse page and limit parameters (format: "page=<number> limit=<number>"), default to page=1 and limit=100 if not provided
 		page := 1
+		limit := 100
 		if secretsValue != "" {
-			if strings.HasPrefix(secretsValue, "page=") {
-				pageStr := strings.TrimPrefix(secretsValue, "page=")
-				if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
-					page = parsedPage
-				} else {
-					fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use -secrets page=<number> (e.g., -secrets page=2)\n\n")
-					showUsage()
-					os.Exit(1)
+			parts := strings.Fields(secretsValue)
+			for _, part := range parts {
+				if strings.HasPrefix(part, "page=") {
+					pageStr := strings.TrimPrefix(part, "page=")
+					if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
+						page = parsedPage
+					} else {
+						fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use -secrets \"page=<number>\" (e.g., -secrets \"page=2\")\n\n")
+						showUsage()
+						os.Exit(1)
+					}
+				} else if strings.HasPrefix(part, "limit=") {
+					limitStr := strings.TrimPrefix(part, "limit=")
+					if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+						limit = parsedLimit
+					} else {
+						fmt.Fprintf(os.Stderr, "Error: Invalid limit format. Use -secrets \"limit=<number>\" (e.g., -secrets \"limit=50\")\n\n")
+						showUsage()
+						os.Exit(1)
+					}
 				}
-			} else {
-				fmt.Fprintf(os.Stderr, "Error: Invalid format. Use -secrets page=<number> (e.g., -secrets page=2)\n\n")
-				showUsage()
-				os.Exit(1)
 			}
 		}
-		handlers.HandleSecrets(workspaceID, apiKey, headers, page, "", "", "", "", "100", "")
+		handlers.HandleSecrets(workspaceID, apiKey, headers, page, "", "", "", "", fmt.Sprintf("%d", limit), "")
 	} else if reconFlagProvided {
 		// Check if field parameter is provided
 		if reconValue == "" {
@@ -399,9 +450,10 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Parse field and page from reconValue (format: "field=emails page=3" or just "field=emails")
+		// Parse field, page, and limit from reconValue (format: "field=emails page=3 limit=50" or just "field=emails")
 		field := ""
 		page := 1
+		limit := 100 // Default limit
 
 		parts := strings.Fields(reconValue)
 		for _, part := range parts {
@@ -414,6 +466,16 @@ func main() {
 					page = parsedPage
 				} else {
 					fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use -recon \"field=<name> page=<number>\" (e.g., -recon \"field=emails page=3\")\n\n")
+					showUsage()
+					os.Exit(1)
+				}
+			}
+			if strings.HasPrefix(part, "limit=") {
+				limitStr := strings.TrimPrefix(part, "limit=")
+				if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+					limit = parsedLimit
+				} else {
+					fmt.Fprintf(os.Stderr, "Error: Invalid limit format. Use -recon \"field=<name> limit=<number>\" (e.g., -recon \"field=emails limit=50\")\n\n")
 					showUsage()
 					os.Exit(1)
 				}
@@ -435,7 +497,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		handlers.HandleJSIntelligence(workspaceID, apiKey, headers, field, page)
+		handlers.HandleJSIntelligence(workspaceID, apiKey, headers, field, page, limit)
 	} else if rsearchFlagProvided {
 		// Perform reverse search
 		if apiKey == "" {
@@ -486,11 +548,12 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Parse fieldname, keyword, and page from filtersValue (format: "urls=github.com page=1" or "urls=github.com")
+		// Parse fieldname, keyword, page, and limit from filtersValue (format: "urls=github.com page=1 limit=50" or "urls=github.com")
 		parts := strings.Fields(filtersValue)
 		fieldname := ""
 		keyword := ""
 		page := 1
+		limit := 100 // Default limit
 
 		for _, part := range parts {
 			if strings.HasPrefix(part, "page=") {
@@ -499,6 +562,15 @@ func main() {
 					page = parsedPage
 				} else {
 					fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use -filters \"fieldname=<keyword> page=<number>\" (e.g., -filters \"urls=github.com page=2\")\n\n")
+					showUsage()
+					os.Exit(1)
+				}
+			} else if strings.HasPrefix(part, "limit=") {
+				limitStr := strings.TrimPrefix(part, "limit=")
+				if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+					limit = parsedLimit
+				} else {
+					fmt.Fprintf(os.Stderr, "Error: Invalid limit format. Use -filters \"fieldname=<keyword> limit=<number>\" (e.g., -filters \"urls=github.com limit=50\")\n\n")
 					showUsage()
 					os.Exit(1)
 				}
@@ -536,7 +608,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		handlers.HandleFilter(workspaceID, apiKey, headers, fieldname, keyword, page)
+		handlers.HandleFilter(workspaceID, apiKey, headers, fieldname, keyword, page, limit)
 	} else if *workspacesFlag {
 		// List all workspaces
 		if apiKey == "" {
@@ -644,36 +716,39 @@ func showUsage() {
 	fmt.Fprintf(os.Stderr, "  -resume                                     Resume scan using resume.config\n")
 	fmt.Fprintf(os.Stderr, "                                              (resumes from last scan failed due to force stop or API limits)\n")
 	fmt.Fprintf(os.Stderr, "  -silent                                     Silent the logo\n")
+	fmt.Fprintf(os.Stderr, "  -up, --update                                Check for updates and show update command\n")
 	fmt.Fprintf(os.Stderr, "  -duc, --disable-update-check                Disable automatic update check on startup\n\n")
 
 	fmt.Fprintf(os.Stderr, "Scans:\n")
 	fmt.Fprintf(os.Stderr, "  -count                                      Show the counts of reconnaissance data and secrets count\n")
-	fmt.Fprintf(os.Stderr, "  --urls page=<page number>                   Fetch all scanned URLs (default: page=1)\n")
-	fmt.Fprintf(os.Stderr, "  --domains page=<page number>                Fetch all scanned domains (default: page=1)\n")
-	fmt.Fprintf(os.Stderr, "  --files page=<page number>                  Fetch all scanned files (default: page=1)\n\n")
+	fmt.Fprintf(os.Stderr, "  --urls \"page=<page number> limit=<number>\"   Fetch all scanned URLs (default: page=1, limit=100)\n")
+	fmt.Fprintf(os.Stderr, "  --domains \"page=<page number> limit=<number>\" Fetch all scanned domains (default: page=1, limit=100)\n")
+	fmt.Fprintf(os.Stderr, "  --files \"page=<page number> limit=<number>\"  Fetch all scanned files (default: page=1, limit=100)\n\n")
 
 	fmt.Fprintf(os.Stderr, "Data:\n")
 	fmt.Fprintf(os.Stderr, "  -workspaces                                 Fetch all workspaces\n")
-	fmt.Fprintf(os.Stderr, "  -secrets page=<number>                      Fetch all secrets for a workspace (default: page=1)\n")
-	fmt.Fprintf(os.Stderr, "  -recon \"field=<name> page=<number>\"         Fetch the reconnaissance data\n")
-	fmt.Fprintf(os.Stderr, "                                              Example: -recon \"field=emails page=3\"\n\n")
+	fmt.Fprintf(os.Stderr, "  -secrets \"page=<number> limit=<number>\"      Fetch all secrets for a workspace (default: page=1, limit=100)\n")
+	fmt.Fprintf(os.Stderr, "  -recon \"field=<name> page=<number> limit=<number>\"\n")
+	fmt.Fprintf(os.Stderr, "                                              Fetch the reconnaissance data (default: page=1, limit=100)\n")
+	fmt.Fprintf(os.Stderr, "                                              Example: -recon \"field=emails page=3 limit=50\"\n\n")
 
 	fmt.Fprintf(os.Stderr, "Reverse Search:\n")
 	fmt.Fprintf(os.Stderr, "  -rsearch \"<field name>=<value>\"             Search the source of the result where it comes from\n")
 	fmt.Fprintf(os.Stderr, "                                              Example: -rsearch \"apipaths=@azure/msal-browser\"\n\n")
 
 	fmt.Fprintf(os.Stderr, "Filter:\n")
-	fmt.Fprintf(os.Stderr, "  -filters \"<fieldname>=<keyword> page=<number>\"    Match keywords in the field data in reconnaissance results\n")
-	fmt.Fprintf(os.Stderr, "                                                    (default: page=1)\n")
-	fmt.Fprintf(os.Stderr, "                                                    Example: -filters \"urls=github.com page=2\"\n\n")
+	fmt.Fprintf(os.Stderr, "  -filters \"<fieldname>=<keyword> page=<number> limit=<number>\"\n")
+	fmt.Fprintf(os.Stderr, "                                                    Match keywords in the field data in reconnaissance results\n")
+	fmt.Fprintf(os.Stderr, "                                                    (default: page=1, limit=100)\n")
+	fmt.Fprintf(os.Stderr, "                                                    Example: -filters \"urls=github.com page=2 limit=50\"\n\n")
 
 	fmt.Fprintf(os.Stderr, "Help:\n")
 	fmt.Fprintf(os.Stderr, "  -h, --help                                  Show this help message\n\n")
 
 	fmt.Fprintf(os.Stderr, "Field Names:\n")
 	fmt.Fprintf(os.Stderr, "  -recon, -rsearch:\n")
-	fmt.Fprintf(os.Stderr, "    apiPaths, urls, extractedDomains, ip, emails, s3Buckets, s3takeovers,gqlQueries, gqlMutaions, sqlFragments, param (extracted parameter),\n")
-	fmt.Fprintf(os.Stderr, "    npmPackages, npmConfusion, guids, localhost, activeDomains,inactiveDomains, allAwsAssets, queryParameters, socialUrls,\n")
+	fmt.Fprintf(os.Stderr, "    apiPaths, urls, extractedDomains, ip, emails, s3Buckets, s3takeovers,gqlQueries, gqlMutaions, gqlFragments, param (extracted parameter),\n")
+	fmt.Fprintf(os.Stderr, "    npmPackages, npmConfusion, guids, localhost, activeDomains,inactiveDomains, allAwsAssets, queryparams, socialUrls,\n")
 	fmt.Fprintf(os.Stderr, "    portUrls, extensionUrls\n\n")
 	fmt.Fprintf(os.Stderr, "  -filters:\n")
 	fmt.Fprintf(os.Stderr, "    jsurls, apiPaths, urls, emails, gqlQueries, gqlMutaions,sqlFragments, param (extracted parameter)\n")

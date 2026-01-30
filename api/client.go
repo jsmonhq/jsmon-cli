@@ -735,7 +735,7 @@ type GetJSURLsResponse struct {
 }
 
 // GetJSURLs retrieves scanned URLs for a workspace using intelligence endpoint
-func (c *Client) GetJSURLs(workspaceID string, page int, runID, search, status string) (*GetJSURLsResponse, error) {
+func (c *Client) GetJSURLs(workspaceID string, page int, runID, search, status string, limit int) (*GetJSURLsResponse, error) {
 	endpoint := APIBaseURL + "/intelligence?wkspId=" + url.QueryEscape(workspaceID) + "&options=jsurls&page=" + fmt.Sprintf("%d", page)
 
 	if runID != "" {
@@ -746,6 +746,10 @@ func (c *Client) GetJSURLs(workspaceID string, page int, runID, search, status s
 	}
 	if status != "" {
 		endpoint += "&status=" + url.QueryEscape(status)
+	}
+	// Add limit parameter
+	if limit > 0 {
+		endpoint += "&limit=" + fmt.Sprintf("%d", limit)
 	}
 
 	req, err := http.NewRequest("GET", endpoint, nil)
@@ -997,37 +1001,50 @@ type GetJSIntelligenceResponse struct {
 
 // mapFieldToOptions converts user-provided field names to API options parameter values
 func mapFieldToOptions(field string) string {
+	fieldLower := strings.ToLower(field)
+
+	// Reject direct use of "awsassets" - only "allAwsAssets" is allowed
+	if fieldLower == "awsassets" {
+		return "INVALID_FIELD_USE_ALL_AWS_ASSETS" // Return invalid field name to trigger API error
+	}
+
+	// Reject direct use of "domains" for intelligence API - only "extractedDomains" is allowed
+	// Note: "domains" is still valid for --domains flag (which uses different endpoint)
+	if fieldLower == "domains" {
+		return "INVALID_FIELD_USE_EXTRACTED_DOMAINS" // Return invalid field name to trigger API error
+	}
+
 	fieldMap := map[string]string{
-		"apipaths":        "apipaths",
-		"urls":            "urls",
-		"domains":         "domains",
-		"ip":              "ipaddresses",
-		"emails":          "emails",
-		"s3buckets":       "s3domains",
-		"s3takeovers":     "s3invalid",
-		"gqlqueries":      "gqlqueries",
-		"gqlmutaions":     "gqlmutations",
-		"gqlfragments":    "gqlfragments",
-		"param":           "parameters",
-		"npmpackages":     "validnodemodules",
-		"npmconfusion":    "invalidnodemodules",
-		"guids":           "guids",
-		"localhost":       "localhost",
-		"activedomains":   "domainsstatus",
-		"inactivedomains": "domainsstatus",
-		"awsassets":       "awsassets",
-		"queryparam":      "queryparams",
-		"socialurls":      "socialmediaurls",
-		"porturls":        "filteredporturls",
-		"extensionurls":   "fileextensionurls",
+		"apipaths":         "apipaths",
+		"urls":             "urls",
+		"extracteddomains": "domains", // Map extractedDomains to domains for intelligence API
+		"ip":               "ipaddresses",
+		"emails":           "emails",
+		"s3buckets":        "s3domains",
+		"s3takeovers":      "s3invalid",
+		"gqlqueries":       "gqlqueries",
+		"gqlmutaions":      "gqlmutations",
+		"gqlfragments":     "gqlfragments",
+		"param":            "parameters",
+		"npmpackages":      "validnodemodules",
+		"npmconfusion":     "invalidnodemodules",
+		"guids":            "guids",
+		"localhost":        "localhost",
+		"activedomains":    "domainsstatus",
+		"inactivedomains":  "domainsstatus",
+		"allawsassets":     "awsassets",
+		"queryparam":       "queryparams",
+		"socialurls":       "socialmediaurls",
+		"porturls":         "filteredporturls",
+		"extensionurls":    "fileextensionurls",
 	}
 
 	// Check if there's a mapping, otherwise use the field name as-is
-	if mapped, exists := fieldMap[strings.ToLower(field)]; exists {
+	if mapped, exists := fieldMap[fieldLower]; exists {
 		return mapped
 	}
 	// Default: use the field name as-is (for fields that match exactly)
-	return strings.ToLower(field)
+	return fieldLower
 }
 
 // getStatusForField returns the status parameter value for fields that require it
@@ -1043,7 +1060,7 @@ func getStatusForField(field string) string {
 }
 
 // GetJSIntelligence retrieves reconnaissance data for a workspace
-func (c *Client) GetJSIntelligence(workspaceID, field string, page int, runID, search, status string) (*GetJSIntelligenceResponse, error) {
+func (c *Client) GetJSIntelligence(workspaceID, field string, page int, runID, search, status string, limit int) (*GetJSIntelligenceResponse, error) {
 	// Map field name to API options parameter
 	optionsValue := mapFieldToOptions(field)
 	endpoint := APIBaseURL + "/intelligence?wkspId=" + url.QueryEscape(workspaceID) + "&options=" + url.QueryEscape(optionsValue) + "&page=" + fmt.Sprintf("%d", page)
@@ -1061,6 +1078,10 @@ func (c *Client) GetJSIntelligence(workspaceID, field string, page int, runID, s
 	}
 	if status != "" {
 		endpoint += "&status=" + url.QueryEscape(status)
+	}
+	// Add limit parameter
+	if limit > 0 {
+		endpoint += "&limit=" + fmt.Sprintf("%d", limit)
 	}
 
 	req, err := http.NewRequest("GET", endpoint, nil)
@@ -1100,7 +1121,7 @@ func (c *Client) GetJSIntelligence(workspaceID, field string, page int, runID, s
 }
 
 // GetJSIntelligenceRaw retrieves reconnaissance data for a workspace and returns the raw JSON response
-func (c *Client) GetJSIntelligenceRaw(workspaceID, field string, page int, runID, search, status string) ([]byte, error) {
+func (c *Client) GetJSIntelligenceRaw(workspaceID, field string, page int, runID, search, status string, limit int) ([]byte, error) {
 	// Map field name to API options parameter
 	optionsValue := mapFieldToOptions(field)
 	endpoint := APIBaseURL + "/intelligence?wkspId=" + url.QueryEscape(workspaceID) + "&options=" + url.QueryEscape(optionsValue) + "&page=" + fmt.Sprintf("%d", page)
@@ -1118,6 +1139,10 @@ func (c *Client) GetJSIntelligenceRaw(workspaceID, field string, page int, runID
 	}
 	if status != "" {
 		endpoint += "&status=" + url.QueryEscape(status)
+	}
+	// Add limit parameter
+	if limit > 0 {
+		endpoint += "&limit=" + fmt.Sprintf("%d", limit)
 	}
 
 	req, err := http.NewRequest("GET", endpoint, nil)

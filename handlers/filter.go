@@ -10,47 +10,72 @@ import (
 )
 
 // HandleFilter displays filtered reconnaissance data for a workspace
-func HandleFilter(workspaceID, apiKey string, headers map[string]string, fieldname, keyword string, page int) {
+func HandleFilter(workspaceID, apiKey string, headers map[string]string, fieldname, keyword string, page int, limit int) {
 	client := api.NewClient(apiKey, headers)
 
-	// Use GetJSIntelligence with search parameter
-	response, err := client.GetJSIntelligence(workspaceID, fieldname, page, "", keyword, "")
-	if err != nil {
-		// Check for authentication error (wrong or missing API key)
-		if apiErr, ok := err.(*api.APIError); ok && apiErr.IsAuthError() {
-			fmt.Fprintf(os.Stderr, "Error: API key is invalid or not configured. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
-			os.Exit(1)
-		}
-		fmt.Fprintf(os.Stderr, "%sError fetching filtered data: %v%s\n", ColorRed, err, ColorReset)
-		os.Exit(1)
-	}
-
-	// Output the data as JSON array
-	var output []interface{}
-
-	// Check if this is a field with object values (not strings)
+	// param (and other object-value fields) return data.value as object; use raw to avoid unmarshal error
 	isParamField := strings.ToLower(fieldname) == "param"
 
-	for _, item := range response.Data {
-		if isParamField {
-			// For param field, parse the value as ParamValue
-			var paramValue ParamValue
-			// item.Value is a string, try to unmarshal it as JSON
-			if err := json.Unmarshal([]byte(item.Value), &paramValue); err == nil {
-				output = append(output, paramValue)
-			} else {
-				// If parsing fails, just add the string value
-				output = append(output, item.Value)
+	var output []interface{}
+
+	if isParamField {
+		rawJSON, err := client.GetJSIntelligenceRaw(workspaceID, fieldname, page, "", keyword, "", limit)
+		if err != nil {
+			if apiErr, ok := err.(*api.APIError); ok && apiErr.IsAuthError() {
+				fmt.Fprintf(os.Stderr, "Error: API key is invalid or not configured. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
+				os.Exit(1)
 			}
-		} else {
-			// For other fields, check if value needs special handling
-			fieldLower := strings.ToLower(fieldname)
+			fmt.Fprintf(os.Stderr, "%sError fetching filtered data: %v%s\n", ColorRed, err, ColorReset)
+			os.Exit(1)
+		}
+		var response map[string]interface{}
+		if err := json.Unmarshal(rawJSON, &response); err != nil {
+			fmt.Fprintf(os.Stderr, "%sError parsing JSON: %v%s\n", ColorRed, err, ColorReset)
+			os.Exit(1)
+		}
+		if data, ok := response["data"].([]interface{}); ok {
+			for _, item := range data {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					if value, exists := itemMap["value"]; exists && value != nil {
+						if valueMap, ok := value.(map[string]interface{}); ok {
+							paramValue := ParamValue{}
+							if url, exists := valueMap["url"]; exists {
+								if urlStr, ok := url.(string); ok {
+									paramValue.URL = urlStr
+								}
+							}
+							if params, exists := valueMap["parameters"]; exists {
+								if paramsArray, ok := params.([]interface{}); ok {
+									paramValue.Parameters = make([]map[string]interface{}, 0, len(paramsArray))
+									for _, p := range paramsArray {
+										if paramMap, ok := p.(map[string]interface{}); ok {
+											paramValue.Parameters = append(paramValue.Parameters, paramMap)
+										}
+									}
+								}
+							}
+							output = append(output, paramValue)
+						}
+					}
+				}
+			}
+		}
+	} else {
+		response, err := client.GetJSIntelligence(workspaceID, fieldname, page, "", keyword, "", limit)
+		if err != nil {
+			if apiErr, ok := err.(*api.APIError); ok && apiErr.IsAuthError() {
+				fmt.Fprintf(os.Stderr, "Error: API key is invalid or not configured. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "%sError fetching filtered data: %v%s\n", ColorRed, err, ColorReset)
+			os.Exit(1)
+		}
+		fieldLower := strings.ToLower(fieldname)
+		for _, item := range response.Data {
 			if fieldLower == "gqlqueries" || fieldLower == "gqlmutaions" || fieldLower == "gqlmutations" || fieldLower == "gqlfragments" {
-				// Replace \n with actual newlines for GraphQL fields
 				valueStr := strings.ReplaceAll(item.Value, "\\n", "\n")
 				output = append(output, valueStr)
 			} else {
-				// For simple string fields, just add the value
 				output = append(output, item.Value)
 			}
 		}
@@ -65,4 +90,3 @@ func HandleFilter(workspaceID, apiKey string, headers map[string]string, fieldna
 
 	fmt.Println(string(jsonOutput))
 }
-
