@@ -15,7 +15,7 @@ import (
 
 const (
 	// Version is the current version of the CLI (must match the latest release tag)
-	Version = "1.0.0"
+	Version = "2.0.0"
 	// GitHubRepo is the repository for checking updates
 	GitHubRepo = "jsmonhq/jsmon-cli"
 )
