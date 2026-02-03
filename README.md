@@ -1,126 +1,273 @@
 # JSMon CLI
 
-A command-line tool for interacting with the JSMon API to scan URLs, domains, and upload files.
+The official command-line tool for [JSMon](https://jsmon.sh). Scan URLs and domains, upload files, and explore reconnaissance data—all from your terminal.
+
+![JSMon CLI - Help](docs/screenshots/help.png)
+
+---
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Commands Overview](#commands-overview)
+- [Scanning](#scanning)
+- [Viewing Data](#viewing-data)
+- [Reconnaissance & Filters](#reconnaissance--filters)
+- [Reverse Search](#reverse-search)
+- [Updates](#updates)
+- [Examples](#examples)
+
+---
+
+## Quick Start
+
+1. **Install** the CLI (see [Installation](#installation)).
+2. **Set your API key** (flag, file, or env—see [Configuration](#configuration)).
+3. **Create or pick a workspace**, then start scanning.
+
+```bash
+# Create a workspace
+jsmon -cw "My Project" -key YOUR_API_KEY
+
+# Scan a URL (use the workspace ID from the previous command)
+jsmon -u "https://example.com/app.js" -wksp YOUR_WORKSPACE_ID
+
+# List reconnaissance data (e.g. emails)
+jsmon -recon "field=emails page=1" -wksp YOUR_WORKSPACE_ID
+```
+
+![Quick start - Create workspace and scan](docs/screenshots/quickstart.png)
+
+---
 
 ## Installation
 
-### Using go install (Recommended)
-
-Install directly from the repository:
+### Option 1: Install from Go (recommended)
 
 ```bash
 go install github.com/jsmonhq/jsmon-cli@latest
 ```
 
-After installation, make sure `$GOPATH/bin` (or `$HOME/go/bin` by default) is in your `PATH`. The binary will be available as `jsmon-cli`.
+Ensure your Go `bin` directory is in your `PATH` (e.g. `$HOME/go/bin`). The binary is typically named `jsmon-cli`; you can rename or symlink it to `jsmon` if you prefer.
 
-### Building from source
-
-For development or custom builds:
+### Option 2: Build from source
 
 ```bash
 git clone https://github.com/jsmonhq/jsmon-cli.git
 cd jsmon-cli
-go build -o jsmon-cli
+go build -o jsmon .
 ```
 
-## Usage
+Use `-o jsmon` to get a binary named `jsmon`.
 
-### Prerequisites
+---
 
-You need a JSMon API key. The priority order is:
-1. `-key` flag (highest priority)
-2. `~/.jsmon/credentials` file
-3. `JSMON_API_KEY` environment variable
+## Configuration
 
-For scanning operations, you also need a workspace ID (must be provided via command or env var):
-- Pass it via the `-wksp` flag
-- Set it as an environment variable: `JSMON_WORKSPACE_ID`
+### API key
 
-**Note:** Workspace ID is NOT read from the credentials file and must be provided in the command.
+Get your API key from [JSMon](https://jsmon.sh). The CLI looks for it in this order:
 
-#### Credentials File
+| Priority | Source |
+|----------|--------|
+| 1 | `-key YOUR_API_KEY` |
+| 2 | File: `~/.jsmon/credentials` |
+| 3 | Environment: `JSMON_API_KEY` |
 
-Create `~/.jsmon/credentials` with your API key written directly in the file:
+**Credentials file:** Create `~/.jsmon/credentials` and put your API key on the first line (no label). Lines starting with `#` are ignored.
 
-```
-your-api-key-here
-```
+### Workspace ID
 
-The file should contain only the API key (first non-empty, non-comment line). Lines starting with `#` are treated as comments and empty lines are ignored.
+For scanning and data commands you need a **workspace ID**:
 
-**Note:** Only the API key is stored in the credentials file. Workspace ID must be provided via `-wksp` flag or environment variable.
+- Pass it with **`-wksp YOUR_WORKSPACE_ID`**, or
+- Set **`JSMON_WORKSPACE_ID`** in your environment.
 
-### Commands
+The workspace ID is **not** read from the credentials file; it must be provided per command or via env.
 
-#### Create a Workspace
+### Optional
+
+- **`-H "Header-Name: value"`** — Add custom HTTP headers for scan requests (can be used multiple times).
+- **`-silent`** — Hide the JSMon logo when running commands.
+
+![Configuration - Credentials and workspace](docs/screenshots/config.png)
+
+---
+
+## Commands Overview
+
+| What you want | Command / flag |
+|---------------|-----------------|
+| Create workspace | `-cw "Name"` or `--create-workspace "Name"` |
+| Scan one URL | `-u "https://..."` |
+| Scan a domain | `-d "example.com"` |
+| Scan URLs from file | `-f urls.txt` |
+| List workspaces | `-workspaces` |
+| Scanned URLs | `--urls "page=1 limit=100"` |
+| Scanned domains | `--domains "page=1 limit=100"` |
+| Scanned files | `--files "page=1 limit=100"` |
+| Secrets | `-secrets "page=1 limit=100"` |
+| Reconnaissance data | `-recon "field=emails page=1"` |
+| Filter recon by keyword | `-filters "urls=github page=1"` |
+| Reverse search | `-rsearch "apipaths=@azure/msal-browser"` |
+| Counts | `-count` |
+| Resume scan | `-resume resume.cfg` |
+| Check for updates | `-up` or `--update` |
+| Disable startup update check | `-duc` or `--disable-update-check` |
+| Help | `-h` or `--help` |
+
+---
+
+## Scanning
+
+### Upload a single URL
 
 ```bash
-jsmon-cli -cw "My Workspace" -key <your-api-key>
-# or
-jsmon-cli --create-workspace "My Workspace" -key <your-api-key>
+jsmon -u "https://example.com/script.js" -wksp YOUR_WORKSPACE_ID
 ```
 
-#### Upload a URL for Scanning
+### Scan a domain
 
 ```bash
-jsmon-cli -u "https://example.com/app.js" -wksp <workspace-id> -key <your-api-key>
+jsmon -d "example.com" -wksp YOUR_WORKSPACE_ID
 ```
 
-#### Scan a Domain
+### Upload multiple URLs from a file
+
+Put one URL per line in a file, then:
 
 ```bash
-jsmon-cli -d "example.com" -wksp <workspace-id> -key <your-api-key>
+jsmon -f urls.txt -wksp YOUR_WORKSPACE_ID
 ```
 
-#### Upload a File of URLs
+### Resume a previous scan
 
-The file should contain one URL per line:
+If a scan was interrupted (e.g. API limits), you can resume using the saved config:
 
 ```bash
-jsmon-cli -f urls.txt -wksp <workspace-id> -key <your-api-key>
+jsmon -resume resume.cfg -wksp YOUR_WORKSPACE_ID
 ```
 
-### Environment Variables
+![Scanning - URL or domain](docs/screenshots/scanning.png)
 
-You can set the API key via environment variable (lowest priority after flag and credentials file):
+---
+
+## Viewing Data
+
+### Workspaces
 
 ```bash
-export JSMON_API_KEY="your-api-key"
+jsmon -workspaces -key YOUR_API_KEY
 ```
 
-For workspace ID, you can set it via environment variable:
+### Scanned URLs, domains, and files
 
 ```bash
-export JSMON_WORKSPACE_ID="your-workspace-id"
+jsmon --urls "page=1 limit=50" -wksp YOUR_WORKSPACE_ID
+jsmon --domains "page=1 limit=50" -wksp YOUR_WORKSPACE_ID
+jsmon --files "page=1 limit=50" -wksp YOUR_WORKSPACE_ID
 ```
 
-Then you can use the tool without the `-wksp` flag (API key will be read from credentials file if set):
+Default is `page=1` and `limit=100` if omitted.
+
+### Secrets
 
 ```bash
-jsmon-cli -u "https://example.com/app.js"
-jsmon-cli -d "example.com"
-jsmon-cli -f urls.txt
+jsmon -secrets "page=1 limit=100" -wksp YOUR_WORKSPACE_ID
 ```
+
+### Count summary
+
+```bash
+jsmon -count -wksp YOUR_WORKSPACE_ID
+```
+
+Optional: add `-runId RUN_ID` for a specific run.
+
+---
+
+## Reconnaissance & Filters
+
+### Fetch reconnaissance data (`-recon`)
+
+Get extracted intelligence for a **field** and optional pagination:
+
+```bash
+jsmon -recon "field=emails page=1 limit=50" -wksp YOUR_WORKSPACE_ID
+```
+
+**Common fields:** `apiPaths`, `urls`, `extractedDomains`, `ip`, `emails`, `s3Buckets`, `gqlQueries`, `gqlFragments`, `param`, `queryparams`, `allAwsAssets`, `npmPackages`, `socialUrls`, `portUrls`, `extensionUrls`, and others (see `jsmon -h`).
+
+### Filter by keyword (`-filters`)
+
+Search within a field (e.g. only URLs containing "github"):
+
+```bash
+jsmon -filters "urls=github.com page=1" -wksp YOUR_WORKSPACE_ID
+jsmon -filters "param=newegg page=1" -wksp YOUR_WORKSPACE_ID
+```
+
+Format: `"fieldname=keyword page=N limit=N"`. Defaults: `page=1`, `limit=100`.
+
+![Reconnaissance and filters](docs/screenshots/recon.png)
+
+---
+
+## Reverse Search
+
+Find where a value came from (e.g. which script exposes an API path):
+
+```bash
+jsmon -rsearch "apipaths=@azure/msal-browser" -wksp YOUR_WORKSPACE_ID
+jsmon -rsearch "extractedDomains=blogs.jsmon.sh" -wksp YOUR_WORKSPACE_ID
+```
+
+Format: `"fieldname=value"`. Use **extractedDomains** (not `domains`) for domain reverse search.
+
+---
+
+## Updates
+
+- **Automatic:** On startup the CLI checks for a newer release and prints a message if one exists (no auto-download).
+- **Manual check:** `jsmon -up` or `jsmon --update` to check and see the install command.
+- **Disable startup check:** `jsmon -duc` or `jsmon --disable-update-check`.
+
+To upgrade after a new release:
+
+```bash
+go install github.com/jsmonhq/jsmon-cli@latest
+```
+
+---
 
 ## Examples
 
 ```bash
-# Create a workspace
-jsmon-cli -cw "My Project" -key abc123
+# Create workspace
+jsmon -cw "My Project" -key YOUR_API_KEY
 
-# Upload a single URL
-jsmon-cli -u "https://example.com/script.js" -wksp 30319f3d-8d35-42db-afb7-e2bd7f8f7fb1 -key abc123
+# Scan targets
+jsmon -u "https://example.com/script.js" -wksp YOUR_WORKSPACE_ID
+jsmon -d "example.com" -wksp YOUR_WORKSPACE_ID
+jsmon -f urls.txt -wksp YOUR_WORKSPACE_ID
 
-# Scan a domain
-jsmon-cli -d "example.com" -wksp 30319f3d-8d35-42db-afb7-e2bd7f8f7fb1 -key abc123
+# Use credentials file (no -key needed)
+jsmon -u "https://example.com/script.js" -wksp YOUR_WORKSPACE_ID
 
-# Upload multiple URLs from a file
-jsmon-cli -f urls.txt -wksp 30319f3d-8d35-42db-afb7-e2bd7f8f7fb1 -key abc123
+# Reconnaissance
+jsmon -recon "field=emails page=1" -wksp YOUR_WORKSPACE_ID
+jsmon -recon "field=allAwsAssets page=1" -wksp YOUR_WORKSPACE_ID
 
-# Using credentials file (create ~/.jsmon/credentials first)
-jsmon-cli -u "https://example.com/script.js"
-jsmon-cli -d "example.com"
-jsmon-cli -f urls.txt
+# Filter and reverse search
+jsmon -filters "urls=api page=1" -wksp YOUR_WORKSPACE_ID
+jsmon -rsearch "apipaths=/auth/login" -wksp YOUR_WORKSPACE_ID
 ```
 
+---
+
+## License & Links
+
+- **GitHub:** [github.com/jsmonhq/jsmon-cli](https://github.com/jsmonhq/jsmon-cli)
+- **JSMon:** [jsmon.sh](https://jsmon.sh)

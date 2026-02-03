@@ -23,11 +23,11 @@ type DomainStatusValue struct {
 }
 
 // HandleJSIntelligence displays reconnaissance data for a workspace in raw JSON format
-func HandleJSIntelligence(workspaceID, apiKey string, headers map[string]string, field string, page int) {
+func HandleJSIntelligence(workspaceID, apiKey string, headers map[string]string, field string, page int, limit int) {
 	client := api.NewClient(apiKey, headers)
 
 	// Get raw JSON response from API
-	rawJSON, err := client.GetJSIntelligenceRaw(workspaceID, field, page, "", "", "")
+	rawJSON, err := client.GetJSIntelligenceRaw(workspaceID, field, page, "", "", "", limit)
 	if err != nil {
 		// Check for authentication error (wrong or missing API key)
 		if apiErr, ok := err.(*api.APIError); ok && apiErr.IsAuthError() {
@@ -48,6 +48,7 @@ func HandleJSIntelligence(workspaceID, apiKey string, headers map[string]string,
 	// Check if this is a field with object values (not strings)
 	isParamField := strings.ToLower(field) == "param"
 	isDomainStatusField := strings.ToLower(field) == "activedomains" || strings.ToLower(field) == "inactivedomains"
+	isAwsAssetsField := strings.ToLower(field) == "awsassets" || strings.ToLower(field) == "allawsassets"
 
 	var output interface{}
 	if isParamField {
@@ -115,6 +116,24 @@ func HandleJSIntelligence(workspaceID, apiKey string, headers map[string]string,
 			}
 		}
 		output = domainValues
+	} else if isAwsAssetsField {
+		// For awsassets field, extract the full value objects (AWS assets are objects)
+		var awsAssets []map[string]interface{}
+		if data, ok := response["data"].([]interface{}); ok {
+			for _, item := range data {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					if value, exists := itemMap["value"]; exists && value != nil {
+						if valueMap, ok := value.(map[string]interface{}); ok {
+							awsAssets = append(awsAssets, valueMap)
+						} else if valueStr, ok := value.(string); ok && valueStr != "" {
+							// If value is a string, wrap it in a map
+							awsAssets = append(awsAssets, map[string]interface{}{"value": valueStr})
+						}
+					}
+				}
+			}
+		}
+		output = awsAssets
 	} else {
 		// For other fields, extract string values
 		var values []string

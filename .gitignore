@@ -1,1 +1,3 @@
-jsmon
+jsmon*
+.vscode
+.DS_Store
