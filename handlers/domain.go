@@ -6,13 +6,11 @@ import (
 	"strings"
 
 	"github.com/jsmonhq/jsmon-cli/api"
-	"github.com/jsmonhq/jsmon-cli/utils"
 )
 
-// HandleDomainScan scans a domain
+// HandleDomainScan scans a domain. The exact value passed via -d is sent to the API (no trimming of scheme or port).
 func HandleDomainScan(domain, workspaceID, apiKey string, resumeFile string, headers map[string]string) {
-	// Extract domain from URL if needed (handles both "example.com" and "https://example.com")
-	domain = utils.ExtractDomain(domain)
+	domain = strings.TrimSpace(domain)
 
 	// Domain scanning does not support resume functionality
 	// Resume is only available for file scanning

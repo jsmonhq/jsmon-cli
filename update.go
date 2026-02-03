@@ -6,13 +6,16 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
 
 const (
-	// Version is the current version of the CLI
-	Version = "1.0.1"
+	// Version is the current version of the CLI (must match the latest release tag)
+	Version = "1.0.0"
 	// GitHubRepo is the repository for checking updates
 	GitHubRepo = "jsmonhq/jsmon-cli"
 )
@@ -66,71 +69,91 @@ func checkForUpdate() {
 	// Simple version comparison (works for semantic versioning)
 	if compareVersions(latestVersion, currentVersion) > 0 {
 		fmt.Fprintf(os.Stderr, "\n[INF] A new version is available: %s (current: %s)\n", latestVersion, currentVersion)
-		fmt.Fprintf(os.Stderr, "[INF] Update with: go install github.com/jsmonhq/jsmon-cli@latest\n\n")
 	}
 }
 
-// checkAndUpdateCLI checks for updates and shows update information (for -up flag)
+// checkAndUpdateCLI runs on -up: shows current version, fetches latest from GitHub, runs go install if newer. Minimal logs.
 func checkAndUpdateCLI() {
-	fmt.Fprintf(os.Stderr, "Checking for updates...\n")
-	
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
+	currentVersion := strings.TrimPrefix(Version, "v")
+	fmt.Fprintf(os.Stderr, "Current version: %s\n", currentVersion)
 
-	// Fetch latest release from GitHub API
+	client := &http.Client{Timeout: 10 * time.Second}
 	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", GitHubRepo)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Failed to check for updates: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Failed to connect to GitHub: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusNotFound {
+		fmt.Fprintf(os.Stderr, "No release found.\n")
+		os.Exit(0)
+	}
 	if resp.StatusCode != http.StatusOK {
-		fmt.Fprintf(os.Stderr, "Error: GitHub API returned status %d\n", resp.StatusCode)
+		fmt.Fprintf(os.Stderr, "Error: GitHub API %d\n", resp.StatusCode)
 		os.Exit(1)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Failed to read response: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
 	var release GitHubRelease
 	if err := json.Unmarshal(body, &release); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Failed to parse response: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Compare versions (remove 'v' prefix if present)
 	latestVersion := strings.TrimPrefix(release.TagName, "v")
-	currentVersion := strings.TrimPrefix(Version, "v")
-
-	fmt.Fprintf(os.Stderr, "Current version: %s\n", currentVersion)
-	fmt.Fprintf(os.Stderr, "Latest version: %s\n", latestVersion)
-
-	comparison := compareVersions(latestVersion, currentVersion)
-	if comparison > 0 {
-		fmt.Fprintf(os.Stderr, "\n[INF] A new version is available!\n")
-		fmt.Fprintf(os.Stderr, "[INF] Update with: go install github.com/jsmonhq/jsmon-cli@latest\n\n")
-		os.Exit(0)
-	} else if comparison == 0 {
-		fmt.Fprintf(os.Stderr, "\n[INF] You are already using the latest version.\n\n")
-		os.Exit(0)
-	} else {
-		fmt.Fprintf(os.Stderr, "\n[INF] You are using a newer version than the latest release.\n\n")
+	if compareVersions(latestVersion, currentVersion) <= 0 {
+		fmt.Fprintf(os.Stderr, "Already on latest version.\n")
 		os.Exit(0)
 	}
+
+	cmd := exec.Command("go", "install", "github.com/jsmonhq/jsmon-cli@latest")
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Update failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	updateVersionInSource(latestVersion)
+	fmt.Fprintf(os.Stderr, "Updated to %s.\n", latestVersion)
+	os.Exit(0)
+}
+
+// updateVersionInSource sets Version = newVer in update.go in the current directory (when running from repo).
+// Returns true if the file was updated.
+func updateVersionInSource(newVer string) bool {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return false
+	}
+	path := filepath.Join(cwd, "update.go")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	re := regexp.MustCompile(`(\tVersion\s*=\s*)"[^"]*"`)
+	newLine := re.ReplaceAllString(string(data), "${1}\""+newVer+"\"")
+	if newLine == string(data) {
+		return false
+	}
+	if err := os.WriteFile(path, []byte(newLine), 0644); err != nil {
+		return false
+	}
+	return true
 }
 
 // compareVersions compares two version strings
