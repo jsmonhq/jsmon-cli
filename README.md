@@ -98,25 +98,60 @@ The workspace ID is **not** read from the credentials file; it must be provided 
 
 ## Commands Overview
 
-| What you want | Command / flag |
-|---------------|-----------------|
-| Create workspace | `-cw "Name"` or `--create-workspace "Name"` |
-| Scan one URL | `-u "https://..."` |
-| Scan a domain | `-d "example.com"` |
-| Scan URLs from file | `-f urls.txt` |
-| List workspaces | `-workspaces` |
-| Scanned URLs | `--urls "page=1 limit=100"` |
-| Scanned domains | `--domains "page=1 limit=100"` |
-| Scanned files | `--files "page=1 limit=100"` |
-| Secrets | `-secrets "page=1 limit=100"` |
-| Reconnaissance data | `-recon "field=emails page=1"` |
-| Filter recon by keyword | `-filters "urls=github page=1"` |
-| Reverse search | `-rsearch "apipaths=@azure/msal-browser"` |
-| Counts | `-count` |
-| Resume scan | `-resume resume.cfg` |
-| Check for updates | `-up` or `--update` |
-| Disable startup update check | `-duc` or `--disable-update-check` |
-| Help | `-h` or `--help` |
+```
+Usage: jsmon-cli [OPTIONS]
+
+Input:
+  -u <input>                                  Input URL to scan
+  -d <input>                                  Input domain to scan
+  -f <input>                                  Input file of URLs to scan (one URL per line)
+  -cw <input> | --create-workspace <input>    Create a new workspace
+
+Configuration:
+  -key <input>                                API key (or add the API key to ~/.jsmon/credentials)
+  -wksp <wksp id>                             Workspace ID to scan the target
+  -H <input>                                  Custom HTTP headers to send along with request to scan
+  -resume                                     Resume scan using resume.config
+                                              (resumes from last scan failed due to force stop or API limits)
+  -silent                                     Silent the logo
+  -up, --update                                Check for updates and show update command
+  -duc, --disable-update-check                Disable automatic update check on startup
+
+Scans:
+  -count                                      Show the counts of reconnaissance data and secrets count
+  --urls "page=<page number> limit=<number>"   Fetch all scanned URLs (default: page=1, limit=100)
+  --domains "page=<page number> limit=<number>" Fetch all scanned domains (default: page=1, limit=100)
+  --files "page=<page number> limit=<number>"  Fetch all scanned files (default: page=1, limit=100)
+
+Data:
+  -workspaces                                 Fetch all workspaces
+  -secrets "page=<number> limit=<number>"      Fetch all secrets for a workspace (default: page=1, limit=100)
+  -recon "field=<name> page=<number> limit=<number>"
+                                              Fetch the reconnaissance data (default: page=1, limit=100)
+                                              Example: -recon "field=emails page=3 limit=50"
+
+Reverse Search:
+  -rsearch "<field name>=<value>"             Search the source of the result where it comes from
+                                              Example: -rsearch "apipaths=@azure/msal-browser"
+
+Filter:
+  -filters "<fieldname>=<keyword> page=<number> limit=<number>"
+                                                    Match keywords in the field data in reconnaissance results
+                                                    (default: page=1, limit=100)
+                                                    Example: -filters "urls=github.com page=2 limit=50"
+
+Help:
+  -h, --help                                  Show this help message
+
+Field Names:
+  -recon, -rsearch:
+    apiPaths, urls, extractedDomains, ip, emails, s3Buckets, s3takeovers,gqlQueries, gqlMutaions, gqlFragments, param (extracted parameter),
+    npmPackages, npmConfusion, guids, localhost, activeDomains,inactiveDomains, allAwsAssets, queryparams, socialUrls,
+    portUrls, extensionUrls
+
+  -filters:
+    jsurls, apiPaths, urls, emails, gqlQueries, gqlMutaions,sqlFragments, param (extracted parameter)
+```
 
 ---
 
@@ -170,7 +205,7 @@ jsmon --domains "page=1 limit=50" -wksp YOUR_WORKSPACE_ID
 jsmon --files "page=1 limit=50" -wksp YOUR_WORKSPACE_ID
 ```
 
-Default is `page=1` and `limit=100` if omitted.
+Default is `page=1` and `limit=100` if omitted. (Max limit: 5000 per page)
 
 ### Secrets
 
@@ -206,7 +241,7 @@ Search within a field (e.g. only URLs containing "github"):
 
 ```bash
 jsmon -filters "urls=github.com page=1" -wksp YOUR_WORKSPACE_ID
-jsmon -filters "param=newegg page=1" -wksp YOUR_WORKSPACE_ID
+jsmon -filters "param=github page=1" -wksp YOUR_WORKSPACE_ID
 ```
 
 Format: `"fieldname=keyword page=N limit=N"`. Defaults: `page=1`, `limit=100`.
