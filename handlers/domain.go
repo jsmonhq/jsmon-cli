@@ -8,15 +8,15 @@ import (
 	"github.com/jsmonhq/jsmon-cli/api"
 )
 
-// HandleDomainScan scans a domain. The exact value passed via -d is sent to the API (no trimming of scheme or port).
-func HandleDomainScan(domain, workspaceID, apiKey string, resumeFile string, headers map[string]string) {
+// HandleDomainScan scans a domain. The exact value passed via -d is sent to the API.
+func HandleDomainScan(domain, workspaceID, apiKey string, resumeFile string, headers map[string]string, scanDepth int) {
 	domain = strings.TrimSpace(domain)
 
 	// Domain scanning does not support resume functionality
 	// Resume is only available for file scanning
 
 	client := api.NewClient(apiKey, headers)
-	err := client.ScanDomain(domain, workspaceID)
+	err := client.ScanDomain(domain, workspaceID, scanDepth)
 	if err != nil {
 		// Check if it's an APIError
 		if apiErr, ok := err.(*api.APIError); ok {
