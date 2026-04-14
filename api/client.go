@@ -154,12 +154,17 @@ func (c *Client) CreateWorkspace(workspaceName string) (string, error) {
 		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	workspaceID, ok := result["workspaceId"].(string)
-	if !ok {
-		return "", fmt.Errorf("workspaceId not found in response")
+	if workspaceID, ok := result["workspaceId"].(string); ok && strings.TrimSpace(workspaceID) != "" {
+		return workspaceID, nil
 	}
 
-	return workspaceID, nil
+	if workspace, ok := result["workspace"].(map[string]interface{}); ok {
+		if workspaceID, ok := workspace["wkspId"].(string); ok && strings.TrimSpace(workspaceID) != "" {
+			return workspaceID, nil
+		}
+	}
+
+	return "", fmt.Errorf("workspace id not found in response")
 }
 
 // UploadURL uploads a URL for scanning
