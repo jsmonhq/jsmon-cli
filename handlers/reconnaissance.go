@@ -15,13 +15,6 @@ type ParamValue struct {
 	Parameters []map[string]interface{} `json:"parameters"`
 }
 
-// DomainStatusValue represents a domain status value with domainName, status, and expiryDate
-type DomainStatusValue struct {
-	DomainName string `json:"domainName"`
-	Status     string `json:"status"`
-	ExpiryDate string `json:"expiryDate"`
-}
-
 // HandleJSIntelligence displays reconnaissance data for a workspace in raw JSON format
 func HandleJSIntelligence(workspaceID, apiKey string, headers map[string]string, field string, page int, limit int) {
 	client := api.NewClient(apiKey, headers)
@@ -47,7 +40,6 @@ func HandleJSIntelligence(workspaceID, apiKey string, headers map[string]string,
 
 	// Check if this is a field with object values (not strings)
 	isParamField := strings.ToLower(field) == "param"
-	isDomainStatusField := strings.ToLower(field) == "activedomains" || strings.ToLower(field) == "inactivedomains"
 	isAwsAssetsField := strings.ToLower(field) == "awsassets" || strings.ToLower(field) == "allawsassets"
 
 	var output interface{}
@@ -82,40 +74,6 @@ func HandleJSIntelligence(workspaceID, apiKey string, headers map[string]string,
 			}
 		}
 		output = paramValues
-	} else if isDomainStatusField {
-		// For domain status fields, extract the full value objects
-		var domainValues []DomainStatusValue
-		if data, ok := response["data"].([]interface{}); ok {
-			for _, item := range data {
-				if itemMap, ok := item.(map[string]interface{}); ok {
-					if value, exists := itemMap["value"]; exists && value != nil {
-						if valueMap, ok := value.(map[string]interface{}); ok {
-							domainValue := DomainStatusValue{}
-							if domainName, exists := valueMap["domainName"]; exists {
-								if domainNameStr, ok := domainName.(string); ok {
-									domainValue.DomainName = domainNameStr
-								}
-							}
-							if status, exists := valueMap["status"]; exists {
-								if statusStr, ok := status.(string); ok {
-									domainValue.Status = statusStr
-								}
-							}
-							if expiryDate, exists := valueMap["expiryDate"]; exists {
-								// expiryDate can be a string or null, handle both
-								if expiryDateStr, ok := expiryDate.(string); ok {
-									domainValue.ExpiryDate = expiryDateStr
-								} else if expiryDate == nil {
-									domainValue.ExpiryDate = "NULL"
-								}
-							}
-							domainValues = append(domainValues, domainValue)
-						}
-					}
-				}
-			}
-		}
-		output = domainValues
 	} else if isAwsAssetsField {
 		// For awsassets field, extract the full value objects (AWS assets are objects)
 		var awsAssets []map[string]interface{}
