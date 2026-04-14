@@ -121,7 +121,7 @@ func HandleCount(workspaceID, apiKey string, headers map[string]string, runID st
 	// 🔗 URLs & Links (sorted by count)
 	fmt.Printf("\n%s🔗 URLs & Links%s\n", ColorGreen, ColorReset)
 	displaySortedCounts([]countItem{
-		{"Total Extracted Domains Status", countAnalysis.TotalExtractedDomainsStatus},
+		{"Total Expired Domains", countAnalysis.TotalExpiredDomains},
 		{"Total File Extension URLs", countAnalysis.TotalFileExtensionUrls},
 		{"Total Filtered Port URLs", countAnalysis.TotalFilteredPortUrls},
 		{"Total Localhost URLs", countAnalysis.TotalLocalhostUrls},

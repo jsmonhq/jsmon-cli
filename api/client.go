@@ -441,7 +441,7 @@ type TotalCountAnalysis struct {
 	TotalValidNodeModules               int `json:"totalValidNodeModules"`
 	TotalQueryParamsUrls                int `json:"totalQueryParamsUrls"`
 	TotalS3DomainsInvalid               int `json:"totalS3DomainsInvalid"`
-	TotalExtractedDomainsStatus         int `json:"totalExtractedDomainsStatus"`
+	TotalExpiredDomains                 int `json:"totalExpiredDomains"`
 	TotalSocialMediaUrls                int `json:"totalSocialMediaUrls"`
 	TotalLocalhostUrls                  int `json:"totalLocalhostUrls"`
 	TotalFilteredPortUrls               int `json:"totalFilteredPortUrls"`
@@ -1030,8 +1030,7 @@ func mapFieldToOptions(field string) string {
 		"npmconfusion":     "invalidnodemodules",
 		"guids":            "guids",
 		"localhost":        "localhost",
-		"activedomains":    "domainsstatus",
-		"inactivedomains":  "domainsstatus",
+		"expireddomains":   "expireddomains",
 		"allawsassets":     "awsassets",
 		"queryparam":       "queryparams",
 		"socialurls":       "socialmediaurls",
@@ -1049,13 +1048,6 @@ func mapFieldToOptions(field string) string {
 
 // getStatusForField returns the status parameter value for fields that require it
 func getStatusForField(field string) string {
-	fieldLower := strings.ToLower(field)
-	if fieldLower == "activedomains" {
-		return "active"
-	}
-	if fieldLower == "inactivedomains" {
-		return "inactive"
-	}
 	return ""
 }
 
