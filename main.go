@@ -814,7 +814,7 @@ func showUsage() {
 	fmt.Fprintf(os.Stderr, "Field Names:\n")
 	fmt.Fprintf(os.Stderr, "  -recon, -rsearch:\n")
 	fmt.Fprintf(os.Stderr, "    apiPaths, urls, extractedDomains, ip, emails, s3Buckets, s3takeovers,gqlQueries, gqlMutaions, gqlFragments, param (extracted parameter),\n")
-	fmt.Fprintf(os.Stderr, "    npmPackages, npmConfusion, guids, localhost, activeDomains,inactiveDomains, allAwsAssets, queryparams, socialUrls,\n")
+	fmt.Fprintf(os.Stderr, "    npmPackages, npmConfusion, guids, localhost, expiredDomains, allAwsAssets, queryparams, socialUrls,\n")
 	fmt.Fprintf(os.Stderr, "    portUrls, extensionUrls\n\n")
 	fmt.Fprintf(os.Stderr, "  -filters:\n")
 	fmt.Fprintf(os.Stderr, "    jsurls, apiPaths, urls, emails, gqlQueries, gqlMutaions,sqlFragments, param (extracted parameter)\n")
