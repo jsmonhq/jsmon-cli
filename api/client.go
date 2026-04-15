@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -377,8 +378,11 @@ func (c *Client) UploadFile(filePath, workspaceID string) error {
 	var requestBody bytes.Buffer
 	writer := multipart.NewWriter(&requestBody)
 
-	// Add file field
-	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+	// Explicitly send text/plain so the backend accepts .txt uploads.
+	partHeader := make(textproto.MIMEHeader)
+	partHeader.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filepath.Base(filePath)))
+	partHeader.Set("Content-Type", "text/plain")
+	part, err := writer.CreatePart(partHeader)
 	if err != nil {
 		return fmt.Errorf("failed to create form file: %w", err)
 	}
@@ -418,7 +422,18 @@ func (c *Client) UploadFile(filePath, workspaceID string) error {
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("uploadFile failed (HTTP %d): %s", resp.StatusCode, string(body))
+		var errorResp map[string]interface{}
+		message := string(body)
+		if err := json.Unmarshal(body, &errorResp); err == nil {
+			if msg, ok := errorResp["message"].(string); ok {
+				message = msg
+			}
+		}
+		return &APIError{
+			URL:     filePath,
+			Message: message,
+			Status:  resp.StatusCode,
+		}
 	}
 
 	return nil
