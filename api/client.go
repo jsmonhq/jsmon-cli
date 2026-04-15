@@ -72,6 +72,15 @@ type Client struct {
 	Headers    map[string]string
 }
 
+// IssuesQueryOptions represents supported /vulnerability query parameters.
+type IssuesQueryOptions struct {
+	Page     int
+	Limit    int
+	Severity []string
+	DateFrom string
+	DateTo   string
+}
+
 // NewClient creates a new API client
 func NewClient(apiKey string, headers map[string]string) *Client {
 	// Ensure headers map is never nil
@@ -83,6 +92,19 @@ func NewClient(apiKey string, headers map[string]string) *Client {
 		HTTPClient: &http.Client{},
 		Headers:    headers,
 	}
+}
+
+func extractAPIMessage(body []byte) string {
+	message := strings.TrimSpace(string(body))
+	var errorResp map[string]interface{}
+	if err := json.Unmarshal(body, &errorResp); err == nil {
+		for _, key := range []string{"message", "error", "errorMessage", "msg"} {
+			if msg, ok := errorResp[key].(string); ok && strings.TrimSpace(msg) != "" {
+				return strings.TrimSpace(msg)
+			}
+		}
+	}
+	return message
 }
 
 // CreateWorkspace creates a new workspace
@@ -132,12 +154,17 @@ func (c *Client) CreateWorkspace(workspaceName string) (string, error) {
 		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	workspaceID, ok := result["workspaceId"].(string)
-	if !ok {
-		return "", fmt.Errorf("workspaceId not found in response")
+	if workspaceID, ok := result["workspaceId"].(string); ok && strings.TrimSpace(workspaceID) != "" {
+		return workspaceID, nil
 	}
 
-	return workspaceID, nil
+	if workspace, ok := result["workspace"].(map[string]interface{}); ok {
+		if workspaceID, ok := workspace["wkspId"].(string); ok && strings.TrimSpace(workspaceID) != "" {
+			return workspaceID, nil
+		}
+	}
+
+	return "", fmt.Errorf("workspace id not found in response")
 }
 
 // UploadURL uploads a URL for scanning
@@ -199,12 +226,15 @@ func (c *Client) UploadURL(jsURL, workspaceID string) error {
 	return nil
 }
 
-// ScanDomain scans a domain
-func (c *Client) ScanDomain(domain, workspaceID string) error {
+// ScanDomain scans a domain with an optional scan depth.
+func (c *Client) ScanDomain(domain, workspaceID string, scanDepth int) error {
 	endpoint := APIBaseURL + "/automateScanDomain?wkspId=" + url.QueryEscape(workspaceID) + "&source=" + url.QueryEscape("cliScan")
 
 	payload := map[string]interface{}{
 		"domain": domain,
+	}
+	if scanDepth > 0 {
+		payload["scanDepth"] = scanDepth
 	}
 
 	// Include custom headers in the payload if any are provided
@@ -363,6 +393,63 @@ func (c *Client) ScanDomain(domain, workspaceID string) error {
 	return nil
 }
 
+// UploadCodeFile uploads a source code file for code scanning.
+func (c *Client) UploadCodeFile(filePath, workspaceID string) error {
+	endpoint := APIBaseURL + "/directFileScan?wkspId=" + url.QueryEscape(workspaceID)
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	var requestBody bytes.Buffer
+	writer := multipart.NewWriter(&requestBody)
+
+	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+	if err != nil {
+		return fmt.Errorf("failed to create form file: %w", err)
+	}
+	if _, err = io.Copy(part, file); err != nil {
+		return fmt.Errorf("failed to copy file data: %w", err)
+	}
+	if err = writer.Close(); err != nil {
+		return fmt.Errorf("failed to close writer: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", endpoint, &requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(c.APIKey))
+	for key, value := range c.Headers {
+		req.Header.Set(key, value)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return &APIError{
+			URL:     filePath,
+			Message: extractAPIMessage(body),
+			Status:  resp.StatusCode,
+		}
+	}
+
+	return nil
+}
+
 // UploadFile uploads a file for scanning
 func (c *Client) UploadFile(filePath, workspaceID string) error {
 	endpoint := APIBaseURL + "/uploadFile?wkspId=" + url.QueryEscape(workspaceID) + "&source=" + url.QueryEscape("cliScan")
@@ -441,7 +528,7 @@ type TotalCountAnalysis struct {
 	TotalValidNodeModules               int `json:"totalValidNodeModules"`
 	TotalQueryParamsUrls                int `json:"totalQueryParamsUrls"`
 	TotalS3DomainsInvalid               int `json:"totalS3DomainsInvalid"`
-	TotalExtractedDomainsStatus         int `json:"totalExtractedDomainsStatus"`
+	TotalExpiredDomains                 int `json:"totalExpiredDomains"`
 	TotalSocialMediaUrls                int `json:"totalSocialMediaUrls"`
 	TotalLocalhostUrls                  int `json:"totalLocalhostUrls"`
 	TotalFilteredPortUrls               int `json:"totalFilteredPortUrls"`
@@ -922,6 +1009,84 @@ type Secret struct {
 	Source      string `json:"source"`
 }
 
+// IssueRecord represents a single vulnerability row from the dashboard /vulnerability API.
+type IssueRecord struct {
+	ID        string `json:"id,omitempty"`
+	VulnType  string `json:"vulnType,omitempty"`
+	Severity  string `json:"severity,omitempty"`
+	VulnValue string `json:"vulnValue,omitempty"`
+	JSURL     string `json:"jsUrl,omitempty"`
+	ScannedOn string `json:"scannedOn,omitempty"`
+}
+
+// GetIssuesResponse represents the mounted dashboard /vulnerability API response.
+type GetIssuesResponse struct {
+	Data          []IssueRecord          `json:"data"`
+	SeverityCount map[string]interface{} `json:"severityCount,omitempty"`
+	Pagination    map[string]interface{} `json:"pagination,omitempty"`
+}
+
+// GetIssues retrieves the mounted dashboard table data from the /vulnerability API.
+func (c *Client) GetIssues(workspaceID string, options IssuesQueryOptions) (*GetIssuesResponse, error) {
+	params := url.Values{}
+	params.Set("wkspId", workspaceID)
+	if options.Page > 0 {
+		params.Set("page", fmt.Sprintf("%d", options.Page))
+	}
+	if options.Limit > 0 {
+		params.Set("limit", fmt.Sprintf("%d", options.Limit))
+	}
+	if len(options.Severity) > 0 {
+		severity := strings.Join(options.Severity, ",")
+		if severity != "" {
+			params.Set("severity", severity)
+		}
+	}
+	if options.DateFrom != "" {
+		params.Set("dateFrom", options.DateFrom)
+	}
+	if options.DateTo != "" {
+		params.Set("dateTo", options.DateTo)
+	}
+
+	endpoint := APIBaseURL + "/vulnerability?" + params.Encode()
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("X-Jsmon-Key", strings.TrimSpace(c.APIKey))
+	for key, value := range c.Headers {
+		req.Header.Set(key, value)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, &APIError{
+			URL:     endpoint,
+			Message: extractAPIMessage(body),
+			Status:  resp.StatusCode,
+		}
+	}
+
+	var response GetIssuesResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &response, nil
+}
+
 // GetSecretsResponse represents the response from keysAndSecrets API
 type GetSecretsResponse struct {
 	Data       []Secret   `json:"data"`
@@ -1030,8 +1195,7 @@ func mapFieldToOptions(field string) string {
 		"npmconfusion":     "invalidnodemodules",
 		"guids":            "guids",
 		"localhost":        "localhost",
-		"activedomains":    "domainsstatus",
-		"inactivedomains":  "domainsstatus",
+		"expireddomains":   "expireddomains",
 		"allawsassets":     "awsassets",
 		"queryparam":       "queryparams",
 		"socialurls":       "socialmediaurls",
@@ -1049,13 +1213,6 @@ func mapFieldToOptions(field string) string {
 
 // getStatusForField returns the status parameter value for fields that require it
 func getStatusForField(field string) string {
-	fieldLower := strings.ToLower(field)
-	if fieldLower == "activedomains" {
-		return "active"
-	}
-	if fieldLower == "inactivedomains" {
-		return "inactive"
-	}
 	return ""
 }
 

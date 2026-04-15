@@ -1,6 +1,6 @@
 # JSMon CLI
 
-The official command-line tool for [JSMon](https://jsmon.sh). Scan URLs and domains, upload files, and explore reconnaissance data—all from your terminal.
+The official command-line tool for [JSMon](https://jsmon.sh). Scan URLs, domains, and source code, upload files, and explore reconnaissance and vulnerability data from your terminal.
 
 ![JSMon CLI - Help](docs/screenshots/help.png)
 
@@ -91,6 +91,7 @@ The workspace ID is **not** read from the credentials file; it must be provided 
 
 - **`-H "Header-Name: value"`** — Add custom HTTP headers for scan requests (can be used multiple times).
 - **`-silent`** — Hide the JSMon logo when running commands.
+- **`-depth 1..4` / `-scan-depth 1..4`** — Control domain scan depth.
 
 ![Configuration - Credentials and workspace](docs/screenshots/config.png)
 
@@ -104,12 +105,14 @@ Usage: jsmon-cli [OPTIONS]
 Input:
   -u <input>                                  Input URL to scan
   -d <input>                                  Input domain to scan
+  -cs <input> | -code-scan <input>            Input source code file to scan
   -f <input>                                  Input file of URLs to scan (one URL per line)
   -cw <input> | --create-workspace <input>    Create a new workspace
 
 Configuration:
   -key <input>                                API key (or add the API key to ~/.jsmon/credentials)
   -wksp <wksp id>                             Workspace ID to scan the target
+  -depth <1..4> | -scan-depth <1..4>          Optional scan depth for domain scans
   -H <input>                                  Custom HTTP headers to send along with request to scan
   -resume                                     Resume scan using resume.config
                                               (resumes from last scan failed due to force stop or API limits)
@@ -125,6 +128,8 @@ Scans:
 
 Data:
   -workspaces                                 Fetch all workspaces
+  -issues "page=<n> limit=<n> ..."            Fetch dashboard vulnerabilities for a workspace (default: page=1, limit=100)
+                                              Supported options: severity, dateFrom, dateTo
   -secrets "page=<number> limit=<number>"      Fetch all secrets for a workspace (default: page=1, limit=100)
   -recon "field=<name> page=<number> limit=<number>"
                                               Fetch the reconnaissance data (default: page=1, limit=100)
@@ -167,6 +172,13 @@ jsmon -u "https://example.com/script.js" -wksp YOUR_WORKSPACE_ID
 
 ```bash
 jsmon -d "example.com" -wksp YOUR_WORKSPACE_ID
+jsmon -d "example.com" -depth 3 -wksp YOUR_WORKSPACE_ID
+```
+
+### Upload a source code file
+
+```bash
+jsmon -cs app.js -wksp YOUR_WORKSPACE_ID
 ```
 
 ### Upload multiple URLs from a file
@@ -212,6 +224,15 @@ Default is `page=1` and `limit=100` if omitted. (Max limit: 5000 per page)
 ```bash
 jsmon -secrets "page=1 limit=100" -wksp YOUR_WORKSPACE_ID
 ```
+
+### Dashboard vulnerabilities (`-issues`)
+
+```bash
+jsmon -issues "page=1 limit=20" -wksp YOUR_WORKSPACE_ID
+jsmon -issues "page=1 limit=20 severity=critical,high dateFrom=2026-04-01 dateTo=2026-04-14" -wksp YOUR_WORKSPACE_ID
+```
+
+The `-issues` command mirrors the mounted dashboard vulnerability table and returns `data`, `severityCount`, and `pagination`.
 
 ### Count summary
 
@@ -286,6 +307,8 @@ jsmon -cw "My Project" -key YOUR_API_KEY
 # Scan targets
 jsmon -u "https://example.com/script.js" -wksp YOUR_WORKSPACE_ID
 jsmon -d "example.com" -wksp YOUR_WORKSPACE_ID
+jsmon -d "example.com" -depth 2 -wksp YOUR_WORKSPACE_ID
+jsmon -cs app.js -wksp YOUR_WORKSPACE_ID
 jsmon -f urls.txt -wksp YOUR_WORKSPACE_ID
 
 # Use credentials file (no -key needed)
@@ -294,6 +317,7 @@ jsmon -u "https://example.com/script.js" -wksp YOUR_WORKSPACE_ID
 # Reconnaissance
 jsmon -recon "field=emails page=1" -wksp YOUR_WORKSPACE_ID
 jsmon -recon "field=allAwsAssets page=1" -wksp YOUR_WORKSPACE_ID
+jsmon -issues "page=1 limit=20 severity=critical,high" -wksp YOUR_WORKSPACE_ID
 
 # Filter and reverse search
 jsmon -filters "urls=api page=1" -wksp YOUR_WORKSPACE_ID

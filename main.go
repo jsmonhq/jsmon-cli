@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jsmonhq/jsmon-cli/api"
 	"github.com/jsmonhq/jsmon-cli/config"
 	"github.com/jsmonhq/jsmon-cli/handlers"
 )
@@ -49,7 +50,7 @@ func main() {
 	// This extracts -H flags and removes them from os.Args so flag.Parse() doesn't see them
 	headers, filteredArgs := parseHeadersAndFilterArgs()
 
-	// Extract --urls, --domains, --files, -secrets, -recon, -rsearch, and -filters flags and their values before flag.Parse() to prevent them from consuming -wksp
+	// Extract custom flags and their values before flag.Parse() to prevent them from consuming -wksp
 	urlsFlagProvided := false
 	urlsValue := ""
 	domainsFlagProvided := false
@@ -64,8 +65,10 @@ func main() {
 	rsearchValue := ""
 	filtersFlagProvided := false
 	filtersValue := ""
+	issuesFlagProvided := false
+	issuesValue := ""
 
-	// First, check originalArgs to find --urls, --domains, --files, -secrets, -recon, -rsearch, and -filters and their values
+	// First, check originalArgs to find custom flags and their values
 	for i, arg := range originalArgs {
 		if arg == "--urls" {
 			urlsFlagProvided = true
@@ -120,6 +123,12 @@ func main() {
 			// Check if next argument is a value (contains "fieldname=" and optionally "page=")
 			if i+1 < len(originalArgs) {
 				filtersValue = originalArgs[i+1]
+			}
+		}
+		if arg == "-issues" {
+			issuesFlagProvided = true
+			if i+1 < len(originalArgs) && looksLikeKeyValueArg(originalArgs[i+1]) {
+				issuesValue = originalArgs[i+1]
 			}
 		}
 	}
@@ -193,6 +202,13 @@ func main() {
 			}
 			continue
 		}
+		if arg == "-issues" {
+			// Skip -issues flag and its optional key=value argument string
+			if i+1 < len(filteredArgs) && looksLikeKeyValueArg(filteredArgs[i+1]) {
+				i++
+			}
+			continue
+		}
 		// Skip page=/limit= value if it's not immediately after --urls, --domains, --files, or -secrets (shouldn't happen, but just in case)
 		if (strings.Contains(arg, "page=") || strings.Contains(arg, "limit=")) && (urlsFlagProvided || domainsFlagProvided || filesFlagProvided || secretsFlagProvided) {
 			continue
@@ -216,16 +232,22 @@ func main() {
 	// Define flags
 	urlFlag := flag.String("u", "", "Input URL to scan")
 	domainFlag := flag.String("d", "", "Input domain to scan")
+	codeScanFlag := flag.String("cs", "", "Input source code file to scan")
+	codeScanFlagAlt := flag.String("code-scan", "", "Input source code file to scan")
 	fileFlag := flag.String("f", "", "Input file of URLs to scan (one URL per line)")
 	createWorkspaceFlag := flag.String("cw", "", "Create a new workspace (use --create-workspace as alternative)")
 	createWorkspaceFlagAlt := flag.String("create-workspace", "", "Create a new workspace")
 	apiKeyFlag := flag.String("key", "", "JSMon API key (or set in ~/.jsmon/credentials)")
 	workspaceIDFlag := flag.String("wksp", "", "Workspace ID (or set in ~/.jsmon/credentials)")
+	depthFlag := flag.Int("depth", 0, "Optional scan depth for domain scans (1-4)")
+	depthFlagAlt := flag.Int("scan-depth", 0, "Optional scan depth for domain scans (1-4)")
 	resumeFlag := flag.String("resume", "", "Resume from a previous scan using resume.cfg file")
 	countFlag := flag.Bool("count", false, "Show count analysis for the workspace")
 	runIDFlag := flag.String("runId", "", "Run ID for count analysis (optional)")
 	workspacesFlag := flag.Bool("workspaces", false, "List all workspaces")
 	_ = flag.Bool("silent", false, "Suppress logo output") // Flag is checked in showUsage()
+	_ = flag.Bool("duc", false, "Disable automatic update check on startup")
+	_ = flag.Bool("disable-update-check", false, "Disable automatic update check on startup")
 	helpFlag := flag.Bool("h", false, "Show help message")
 	helpFlagAlt := flag.Bool("help", false, "Show help message")
 
@@ -287,6 +309,18 @@ func main() {
 	workspaceName := *createWorkspaceFlag
 	if workspaceName == "" {
 		workspaceName = *createWorkspaceFlagAlt
+	}
+	codeScanPath := *codeScanFlag
+	if codeScanPath == "" {
+		codeScanPath = *codeScanFlagAlt
+	}
+	scanDepth := *depthFlag
+	if scanDepth == 0 {
+		scanDepth = *depthFlagAlt
+	}
+	if scanDepth != 0 && (scanDepth < 1 || scanDepth > 4) {
+		fmt.Fprintf(os.Stderr, "Error: Scan depth must be between 1 and 4. Use -depth <1..4> or -scan-depth <1..4>\n")
+		os.Exit(1)
 	}
 
 	// Route to appropriate handler
@@ -609,6 +643,22 @@ func main() {
 		}
 
 		handlers.HandleFilter(workspaceID, apiKey, headers, fieldname, keyword, page, limit)
+	} else if issuesFlagProvided {
+		if apiKey == "" {
+			fmt.Fprintf(os.Stderr, "Error: API key is required. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
+			os.Exit(1)
+		}
+		if workspaceID == "" {
+			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
+			os.Exit(1)
+		}
+		issueOptions, err := parseIssuesOptions(issuesValue)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
+			showUsage()
+			os.Exit(1)
+		}
+		handlers.HandleIssues(workspaceID, apiKey, headers, issueOptions)
 	} else if *workspacesFlag {
 		// List all workspaces
 		if apiKey == "" {
@@ -667,7 +717,18 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		handlers.HandleDomainScan(*domainFlag, workspaceID, apiKey, "", headers)
+		handlers.HandleDomainScan(*domainFlag, workspaceID, apiKey, "", headers, scanDepth)
+	} else if codeScanPath != "" {
+		// Source code scan
+		if apiKey == "" {
+			fmt.Fprintf(os.Stderr, "Error: API key is required. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
+			os.Exit(1)
+		}
+		if workspaceID == "" {
+			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
+			os.Exit(1)
+		}
+		handlers.HandleCodeScan(codeScanPath, workspaceID, apiKey, headers)
 	} else if *fileFlag != "" {
 		// File upload
 		if apiKey == "" {
@@ -706,12 +767,14 @@ func showUsage() {
 	fmt.Fprintf(os.Stderr, "Input:\n")
 	fmt.Fprintf(os.Stderr, "  -u <input>                                  Input URL to scan\n")
 	fmt.Fprintf(os.Stderr, "  -d <input>                                  Input domain to scan\n")
+	fmt.Fprintf(os.Stderr, "  -cs <input> | -code-scan <input>            Input source code file to scan\n")
 	fmt.Fprintf(os.Stderr, "  -f <input>                                  Input file of URLs to scan (one URL per line)\n")
 	fmt.Fprintf(os.Stderr, "  -cw <input> | --create-workspace <input>    Create a new workspace\n\n")
 
 	fmt.Fprintf(os.Stderr, "Configuration:\n")
 	fmt.Fprintf(os.Stderr, "  -key <input>                                API key (or add the API key to ~/.jsmon/credentials)\n")
 	fmt.Fprintf(os.Stderr, "  -wksp <wksp id>                             Workspace ID to scan the target\n")
+	fmt.Fprintf(os.Stderr, "  -depth <1..4> | -scan-depth <1..4>          Optional scan depth for domain scans\n")
 	fmt.Fprintf(os.Stderr, "  -H <input>                                  Custom HTTP headers to send along with request to scan\n")
 	fmt.Fprintf(os.Stderr, "  -resume                                     Resume scan using resume.config\n")
 	fmt.Fprintf(os.Stderr, "                                              (resumes from last scan failed due to force stop or API limits)\n")
@@ -727,6 +790,9 @@ func showUsage() {
 
 	fmt.Fprintf(os.Stderr, "Data:\n")
 	fmt.Fprintf(os.Stderr, "  -workspaces                                 Fetch all workspaces\n")
+	fmt.Fprintf(os.Stderr, "  -issues \"page=<n> limit=<n> ...\"            Fetch dashboard vulnerabilities for a workspace (default: page=1, limit=100)\n")
+	fmt.Fprintf(os.Stderr, "                                              Supported options: severity, dateFrom, dateTo\n")
+	fmt.Fprintf(os.Stderr, "                                              Example: -issues \"page=1 limit=20 severity=critical,high dateFrom=2026-04-01 dateTo=2026-04-14\"\n")
 	fmt.Fprintf(os.Stderr, "  -secrets \"page=<number> limit=<number>\"      Fetch all secrets for a workspace (default: page=1, limit=100)\n")
 	fmt.Fprintf(os.Stderr, "  -recon \"field=<name> page=<number> limit=<number>\"\n")
 	fmt.Fprintf(os.Stderr, "                                              Fetch the reconnaissance data (default: page=1, limit=100)\n")
@@ -784,4 +850,78 @@ func parseHeadersAndFilterArgs() (map[string]string, []string) {
 	}
 
 	return headers, filteredArgs
+}
+
+func looksLikeKeyValueArg(arg string) bool {
+	return arg != "" && !strings.HasPrefix(arg, "-") && strings.Contains(arg, "=")
+}
+
+func parseCSVValues(value string) []string {
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			values = append(values, part)
+		}
+	}
+	return values
+}
+
+func parsePositiveInt(value, fieldName string) (int, error) {
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("invalid %s value %q", fieldName, value)
+	}
+	return parsed, nil
+}
+
+func parseIssuesOptions(raw string) (api.IssuesQueryOptions, error) {
+	options := api.IssuesQueryOptions{
+		Page:  1,
+		Limit: 100,
+	}
+
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return options, nil
+	}
+
+	for _, part := range strings.Fields(raw) {
+		kv := strings.SplitN(part, "=", 2)
+		if len(kv) != 2 {
+			return options, fmt.Errorf("invalid issues option %q. Use key=value pairs", part)
+		}
+
+		key := strings.ToLower(strings.TrimSpace(kv[0]))
+		value := strings.TrimSpace(kv[1])
+		if value == "" {
+			return options, fmt.Errorf("missing value for issues option %q", key)
+		}
+
+		switch key {
+		case "page":
+			page, err := parsePositiveInt(value, "page")
+			if err != nil {
+				return options, err
+			}
+			options.Page = page
+		case "limit":
+			limit, err := parsePositiveInt(value, "limit")
+			if err != nil {
+				return options, err
+			}
+			options.Limit = limit
+		case "severity":
+			options.Severity = parseCSVValues(value)
+		case "datefrom":
+			options.DateFrom = value
+		case "dateto":
+			options.DateTo = value
+		default:
+			return options, fmt.Errorf("unsupported issues option %q", key)
+		}
+	}
+
+	return options, nil
 }
