@@ -146,7 +146,7 @@ Help:
 Field Names:
   -recon, -rsearch:
     apiPaths, urls, extractedDomains, ip, emails, s3Buckets, s3takeovers,gqlQueries, gqlMutaions, gqlFragments, param (extracted parameter),
-    npmPackages, npmConfusion, guids, localhost, activeDomains,inactiveDomains, allAwsAssets, queryparams, socialUrls,
+    npmPackages, npmConfusion, guids, localhost, expiredDomains, allAwsAssets, queryparams, socialUrls,
     portUrls, extensionUrls
 
   -filters:
@@ -233,7 +233,7 @@ Get extracted intelligence for a **field** and optional pagination:
 jsmon -recon "field=emails page=1 limit=50" -wksp YOUR_WORKSPACE_ID
 ```
 
-**Common fields:** `apiPaths`, `urls`, `extractedDomains`, `ip`, `emails`, `s3Buckets`, `gqlQueries`, `gqlFragments`, `param`, `queryparams`, `allAwsAssets`, `npmPackages`, `socialUrls`, `portUrls`, `extensionUrls`, and others (see `jsmon -h`).
+**Common fields:** `apiPaths`, `urls`, `extractedDomains`, `expiredDomains`, `ip`, `emails`, `s3Buckets`, `gqlQueries`, `gqlFragments`, `param`, `queryparams`, `allAwsAssets`, `npmPackages`, `socialUrls`, `portUrls`, `extensionUrls`, and others (see `jsmon -h`).
 
 ### Filter by keyword (`-filters`)
 
