@@ -633,6 +633,7 @@ type Workspace struct {
 type GetWorkspacesResponse struct {
 	Message    string      `json:"message"`
 	Workspaces []Workspace `json:"workspaces"`
+	Total      int         `json:"total"`
 }
 
 // GetWorkspaces retrieves all workspaces for the user
