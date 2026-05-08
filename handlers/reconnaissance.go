@@ -16,11 +16,11 @@ type ParamValue struct {
 }
 
 // HandleJSIntelligence displays reconnaissance data for a workspace in raw JSON format
-func HandleJSIntelligence(workspaceID, apiKey string, headers map[string]string, field string, page int, limit int) {
+func HandleJSIntelligence(workspaceID, apiKey string, headers map[string]string, field string, page int, limit int, options api.IntelligenceQueryOptions) {
 	client := api.NewClient(apiKey, headers)
 
 	// Get raw JSON response from API
-	rawJSON, err := client.GetJSIntelligenceRaw(workspaceID, field, page, "", "", "", limit)
+	rawJSON, err := client.GetJSIntelligenceRaw(workspaceID, field, page, options, limit)
 	if err != nil {
 		// Check for authentication error (wrong or missing API key)
 		if apiErr, ok := err.(*api.APIError); ok && apiErr.IsAuthError() {
@@ -45,7 +45,7 @@ func HandleJSIntelligence(workspaceID, apiKey string, headers map[string]string,
 	var output interface{}
 	if isParamField {
 		// For param field, extract the full value objects and ensure url comes before parameters
-		var paramValues []ParamValue
+		paramValues := []ParamValue{}
 		if data, ok := response["data"].([]interface{}); ok {
 			for _, item := range data {
 				if itemMap, ok := item.(map[string]interface{}); ok {
@@ -76,7 +76,7 @@ func HandleJSIntelligence(workspaceID, apiKey string, headers map[string]string,
 		output = paramValues
 	} else if isAwsAssetsField {
 		// For awsassets field, extract the full value objects (AWS assets are objects)
-		var awsAssets []map[string]interface{}
+		awsAssets := []map[string]interface{}{}
 		if data, ok := response["data"].([]interface{}); ok {
 			for _, item := range data {
 				if itemMap, ok := item.(map[string]interface{}); ok {
@@ -94,7 +94,7 @@ func HandleJSIntelligence(workspaceID, apiKey string, headers map[string]string,
 		output = awsAssets
 	} else {
 		// For other fields, extract string values
-		var values []string
+		values := []string{}
 		if data, ok := response["data"].([]interface{}); ok {
 			for _, item := range data {
 				if itemMap, ok := item.(map[string]interface{}); ok {

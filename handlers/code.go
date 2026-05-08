@@ -8,11 +8,11 @@ import (
 )
 
 // HandleCodeScan uploads a source code file for code scanning.
-func HandleCodeScan(filePath, workspaceID, apiKey string, headers map[string]string) {
+func HandleCodeScan(filePath, workspaceID, apiKey string, headers map[string]string, runID string) {
 	fmt.Printf("Code scan started for - %s\n", filePath)
 
 	client := api.NewClient(apiKey, headers)
-	err := client.UploadCodeFile(filePath, workspaceID)
+	response, err := client.UploadCodeFile(filePath, workspaceID, runID)
 	if err != nil {
 		if apiErr, ok := err.(*api.APIError); ok {
 			if apiErr.IsAuthError() {
@@ -36,5 +36,5 @@ func HandleCodeScan(filePath, workspaceID, apiKey string, headers map[string]str
 		os.Exit(1)
 	}
 
-	fmt.Printf("%sCode scan completed for - %s%s\n", ColorGreen, filePath, ColorReset)
+	printScanQueued("Code scan", filePath, response)
 }
