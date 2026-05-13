@@ -19,21 +19,14 @@ type SecretOutput struct {
 // SecretsResponseOutput represents the output format for secrets response
 type SecretsResponseOutput struct {
 	Data       []SecretOutput `json:"data"`
-	Pagination struct {
-		CurrentPage     int  `json:"currentPage"`
-		TotalItems      int  `json:"totalItems"`
-		TotalPages      int  `json:"totalPages"`
-		ItemsPerPage    int  `json:"itemsPerPage"`
-		HasNextPage     bool `json:"hasNextPage"`
-		HasPreviousPage bool `json:"hasPreviousPage"`
-	} `json:"pagination"`
+	Pagination api.Pagination `json:"pagination"`
 }
 
 // HandleSecrets displays secrets for a workspace in JSON format
-func HandleSecrets(workspaceID, apiKey string, headers map[string]string, page int, runID, lastScannedOn, formDate, toDate, limit, search string) {
+func HandleSecrets(workspaceID, apiKey string, headers map[string]string, page int, options api.SecretsQueryOptions) {
 	client := api.NewClient(apiKey, headers)
 
-	response, err := client.GetSecrets(workspaceID, page, runID, lastScannedOn, formDate, toDate, limit, search)
+	response, err := client.GetSecrets(workspaceID, page, options)
 	if err != nil {
 		// Check for authentication error (wrong or missing API key)
 		if apiErr, ok := err.(*api.APIError); ok && apiErr.IsAuthError() {

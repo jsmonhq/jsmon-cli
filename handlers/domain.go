@@ -9,14 +9,11 @@ import (
 )
 
 // HandleDomainScan scans a domain. The exact value passed via -d is sent to the API.
-func HandleDomainScan(domain, workspaceID, apiKey string, resumeFile string, headers map[string]string, scanDepth int) {
+func HandleDomainScan(domain, workspaceID, apiKey string, headers map[string]string, scanDepth int, runID string) {
 	domain = strings.TrimSpace(domain)
 
-	// Domain scanning does not support resume functionality
-	// Resume is only available for file scanning
-
 	client := api.NewClient(apiKey, headers)
-	err := client.ScanDomain(domain, workspaceID, scanDepth)
+	response, err := client.ScanDomain(domain, workspaceID, runID, scanDepth)
 	if err != nil {
 		// Check if it's an APIError
 		if apiErr, ok := err.(*api.APIError); ok {
@@ -57,5 +54,5 @@ func HandleDomainScan(domain, workspaceID, apiKey string, resumeFile string, hea
 		os.Exit(1)
 	}
 
-	fmt.Printf("%sDomain scan completed for - %s%s\n", ColorGreen, domain, ColorReset)
+	printScanQueued("Domain scan", domain, response)
 }

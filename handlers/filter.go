@@ -10,16 +10,17 @@ import (
 )
 
 // HandleFilter displays filtered reconnaissance data for a workspace
-func HandleFilter(workspaceID, apiKey string, headers map[string]string, fieldname, keyword string, page int, limit int) {
+func HandleFilter(workspaceID, apiKey string, headers map[string]string, fieldname, keyword string, page int, limit int, options api.IntelligenceQueryOptions) {
 	client := api.NewClient(apiKey, headers)
+	options.Search = keyword
 
 	// param (and other object-value fields) return data.value as object; use raw to avoid unmarshal error
 	isParamField := strings.ToLower(fieldname) == "param"
 
-	var output []interface{}
+	output := []interface{}{}
 
 	if isParamField {
-		rawJSON, err := client.GetJSIntelligenceRaw(workspaceID, fieldname, page, "", keyword, "", limit)
+		rawJSON, err := client.GetJSIntelligenceRaw(workspaceID, fieldname, page, options, limit)
 		if err != nil {
 			if apiErr, ok := err.(*api.APIError); ok && apiErr.IsAuthError() {
 				fmt.Fprintf(os.Stderr, "Error: API key is invalid or not configured. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
@@ -61,7 +62,7 @@ func HandleFilter(workspaceID, apiKey string, headers map[string]string, fieldna
 			}
 		}
 	} else {
-		response, err := client.GetJSIntelligence(workspaceID, fieldname, page, "", keyword, "", limit)
+		response, err := client.GetJSIntelligence(workspaceID, fieldname, page, options, limit)
 		if err != nil {
 			if apiErr, ok := err.(*api.APIError); ok && apiErr.IsAuthError() {
 				fmt.Fprintf(os.Stderr, "Error: API key is invalid or not configured. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")

@@ -93,6 +93,8 @@ The workspace ID is **not** read from the credentials file; it must be provided 
 - **`-silent`** — Hide the JSMon logo when running commands.
 - **`-depth 1..4` / `-scan-depth 1..4`** — Control domain scan depth.
 
+Scan commands submit work to JSMon's asynchronous pipeline. The CLI prints the queued `runId` and `version`; use those values with read commands when you want run-scoped or version-specific results.
+
 ![Configuration - Credentials and workspace](docs/screenshots/config.png)
 
 ---
@@ -106,7 +108,7 @@ Input:
   -u <input>                                  Input URL to scan
   -d <input>                                  Input domain to scan
   -cs <input> | -code-scan <input>            Input source code file to scan
-  -f <input>                                  Input file of URLs to scan (one URL per line)
+  -f <input>                                  Upload a URL list file for server-side file scan
   -cw <input> | --create-workspace <input>    Create a new workspace
 
 Configuration:
@@ -114,8 +116,6 @@ Configuration:
   -wksp <wksp id>                             Workspace ID to scan the target
   -depth <1..4> | -scan-depth <1..4>          Optional scan depth for domain scans
   -H <input>                                  Custom HTTP headers to send along with request to scan
-  -resume                                     Resume scan using resume.config
-                                              (resumes from last scan failed due to force stop or API limits)
   -silent                                     Silent the logo
   -up, --update                                Check for updates and show update command
   -duc, --disable-update-check                Disable automatic update check on startup
@@ -130,17 +130,18 @@ Data:
   -workspaces                                 Fetch all workspaces
   -issues "page=<n> limit=<n> ..."            Fetch dashboard vulnerabilities for a workspace (default: page=1, limit=100)
                                               Supported options: severity, dateFrom, dateTo
-  -secrets "page=<number> limit=<number>"      Fetch all secrets for a workspace (default: page=1, limit=100)
-  -recon "field=<name> page=<number> limit=<number>"
+  -secrets "page=<number> limit=<number> runId=<id> version=<n>"
+                                              Fetch all secrets for a workspace (default: page=1, limit=100)
+  -recon "field=<name> page=<number> limit=<number> runId=<id> version=<n>"
                                               Fetch the reconnaissance data (default: page=1, limit=100)
-                                              Example: -recon "field=emails page=3 limit=50"
+                                              Example: -recon "field=extractedUrls page=3 limit=50"
 
 Reverse Search:
   -rsearch "<field name>=<value>"             Search the source of the result where it comes from
                                               Example: -rsearch "apipaths=@azure/msal-browser"
 
 Filter:
-  -filters "<fieldname>=<keyword> page=<number> limit=<number>"
+  -filters "<fieldname>=<keyword> page=<number> limit=<number> runId=<id> version=<n>"
                                                     Match keywords in the field data in reconnaissance results
                                                     (default: page=1, limit=100)
                                                     Example: -filters "urls=github.com page=2 limit=50"
@@ -150,12 +151,12 @@ Help:
 
 Field Names:
   -recon, -rsearch:
-    apiPaths, urls, extractedDomains, ip, emails, s3Buckets, s3takeovers,gqlQueries, gqlMutaions, gqlFragments, param (extracted parameter),
+    apiPaths, urls/jsurls (scanned URLs), extractedUrls, extractedDomains, ip, emails, s3Buckets, s3takeovers, gqlQueries, gqlMutations, gqlMutaions, gqlFragments, param (extracted parameter),
     npmPackages, npmConfusion, guids, localhost, expiredDomains, allAwsAssets, queryparams, socialUrls,
     portUrls, extensionUrls
 
   -filters:
-    jsurls, apiPaths, urls, emails, gqlQueries, gqlMutaions,sqlFragments, param (extracted parameter)
+    jsurls, apiPaths, urls, emails, gqlQueries, gqlMutations, gqlMutaions, sqlFragments, param (extracted parameter)
 ```
 
 ---
@@ -183,19 +184,13 @@ jsmon -cs app.js -wksp YOUR_WORKSPACE_ID
 
 ### Upload multiple URLs from a file
 
-Put one URL per line in a file, then:
+Put one URL per line in a file, then submit the file to JSMon's server-side file scan:
 
 ```bash
 jsmon -f urls.txt -wksp YOUR_WORKSPACE_ID
 ```
 
-### Resume a previous scan
-
-If a scan was interrupted (e.g. API limits), you can resume using the saved config:
-
-```bash
-jsmon -resume resume.cfg -wksp YOUR_WORKSPACE_ID
-```
+The response includes `runId` and `version`. Re-submit the file if a queued file scan fails before processing.
 
 ![Scanning - URL or domain](docs/screenshots/scanning.png)
 
@@ -254,7 +249,9 @@ Get extracted intelligence for a **field** and optional pagination:
 jsmon -recon "field=emails page=1 limit=50" -wksp YOUR_WORKSPACE_ID
 ```
 
-**Common fields:** `apiPaths`, `urls`, `extractedDomains`, `expiredDomains`, `ip`, `emails`, `s3Buckets`, `gqlQueries`, `gqlFragments`, `param`, `queryparams`, `allAwsAssets`, `npmPackages`, `socialUrls`, `portUrls`, `extensionUrls`, and others (see `jsmon -h`).
+**Common fields:** `apiPaths`, `urls`/`jsurls` for scanned URLs, `extractedUrls` for automation-extracted URL strings, `extractedDomains`, `expiredDomains`, `ip`, `emails`, `s3Buckets` (`awsassets.s3buckets`), `gqlQueries`, `gqlMutations`, `gqlFragments`, `param`, `queryparams`, `allAwsAssets`, `npmPackages`, `socialUrls`, `portUrls`, `extensionUrls`, and others (see `jsmon -h`).
+
+Add `runId=<id>` to scope results to one scan. Add `version=<n>` with `runId` to inspect a specific monitoring/rescan version.
 
 ### Filter by keyword (`-filters`)
 

@@ -93,8 +93,7 @@ func main() {
 		}
 		if arg == "-secrets" {
 			secretsFlagProvided = true
-			// Check if next argument is a value (contains "page=" or "limit=")
-			if i+1 < len(originalArgs) && (strings.Contains(originalArgs[i+1], "page=") || strings.Contains(originalArgs[i+1], "limit=")) {
+			if i+1 < len(originalArgs) && looksLikeKeyValueArg(originalArgs[i+1]) {
 				secretsValue = originalArgs[i+1]
 			}
 		}
@@ -170,10 +169,9 @@ func main() {
 			continue
 		}
 		if arg == "-secrets" {
-			// Skip -secrets flag
-			// Also skip the next arg if it contains page= or limit=
-			if i+1 < len(filteredArgs) && (strings.Contains(filteredArgs[i+1], "page=") || strings.Contains(filteredArgs[i+1], "limit=")) {
-				i++ // Skip the page=/limit= value
+			// Skip -secrets flag and its optional key=value argument string
+			if i+1 < len(filteredArgs) && looksLikeKeyValueArg(filteredArgs[i+1]) {
+				i++
 			}
 			continue
 		}
@@ -209,8 +207,11 @@ func main() {
 			}
 			continue
 		}
-		// Skip page=/limit= value if it's not immediately after --urls, --domains, --files, or -secrets (shouldn't happen, but just in case)
-		if (strings.Contains(arg, "page=") || strings.Contains(arg, "limit=")) && (urlsFlagProvided || domainsFlagProvided || filesFlagProvided || secretsFlagProvided) {
+		// Skip page=/limit= value if it's not immediately after --urls, --domains, or --files (shouldn't happen, but just in case)
+		if (strings.Contains(arg, "page=") || strings.Contains(arg, "limit=")) && (urlsFlagProvided || domainsFlagProvided || filesFlagProvided) {
+			continue
+		}
+		if looksLikeKeyValueArg(arg) && secretsFlagProvided {
 			continue
 		}
 		// Skip field=... page=... value if it's not immediately after -recon (shouldn't happen, but just in case)
@@ -241,7 +242,6 @@ func main() {
 	workspaceIDFlag := flag.String("wksp", "", "Workspace ID (or set in ~/.jsmon/credentials)")
 	depthFlag := flag.Int("depth", 0, "Optional scan depth for domain scans (1-4)")
 	depthFlagAlt := flag.Int("scan-depth", 0, "Optional scan depth for domain scans (1-4)")
-	resumeFlag := flag.String("resume", "", "Resume from a previous scan using resume.cfg file")
 	countFlag := flag.Bool("count", false, "Show count analysis for the workspace")
 	runIDFlag := flag.String("runId", "", "Run ID for count analysis (optional)")
 	workspacesFlag := flag.Bool("workspaces", false, "List all workspaces")
@@ -451,31 +451,50 @@ func main() {
 		// Parse page and limit parameters (format: "page=<number> limit=<number>"), default to page=1 and limit=100 if not provided
 		page := 1
 		limit := 100
+		secretsOptions := api.SecretsQueryOptions{}
 		if secretsValue != "" {
-			parts := strings.Fields(secretsValue)
-			for _, part := range parts {
-				if strings.HasPrefix(part, "page=") {
-					pageStr := strings.TrimPrefix(part, "page=")
-					if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
-						page = parsedPage
-					} else {
-						fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use -secrets \"page=<number>\" (e.g., -secrets \"page=2\")\n\n")
-						showUsage()
-						os.Exit(1)
-					}
-				} else if strings.HasPrefix(part, "limit=") {
-					limitStr := strings.TrimPrefix(part, "limit=")
-					if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
-						limit = parsedLimit
-					} else {
-						fmt.Fprintf(os.Stderr, "Error: Invalid limit format. Use -secrets \"limit=<number>\" (e.g., -secrets \"limit=50\")\n\n")
-						showUsage()
-						os.Exit(1)
-					}
+			parsedOptions := parseKeyValueOptions(secretsValue)
+			if value := parsedOptions["page"]; value != "" {
+				parsedPage, err := parsePositiveInt(value, "page")
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use -secrets \"page=<number>\" (e.g., -secrets \"page=2\")\n\n")
+					showUsage()
+					os.Exit(1)
 				}
+				page = parsedPage
 			}
+			if value := parsedOptions["limit"]; value != "" {
+				parsedLimit, err := parsePositiveInt(value, "limit")
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error: Invalid limit format. Use -secrets \"limit=<number>\" (e.g., -secrets \"limit=50\")\n\n")
+					showUsage()
+					os.Exit(1)
+				}
+				limit = parsedLimit
+			}
+			secretsOptions.RunID = parsedOptions["runid"]
+			secretsOptions.Version = parsedOptions["version"]
+			secretsOptions.LastScannedOn = parsedOptions["lastscannedon"]
+			secretsOptions.FormDate = parsedOptions["formdate"]
+			if secretsOptions.FormDate == "" {
+				secretsOptions.FormDate = parsedOptions["fromdate"]
+			}
+			if secretsOptions.FormDate == "" {
+				secretsOptions.FormDate = parsedOptions["datefrom"]
+			}
+			secretsOptions.ToDate = parsedOptions["todate"]
+			if secretsOptions.ToDate == "" {
+				secretsOptions.ToDate = parsedOptions["dateto"]
+			}
+			secretsOptions.Search = parsedOptions["search"]
 		}
-		handlers.HandleSecrets(workspaceID, apiKey, headers, page, "", "", "", "", fmt.Sprintf("%d", limit), "")
+		secretsOptions.Limit = fmt.Sprintf("%d", limit)
+		if secretsOptions.Version != "" && secretsOptions.RunID == "" {
+			fmt.Fprintf(os.Stderr, "Error: version requires runId. Use -secrets \"runId=<id> version=<number>\"\n\n")
+			showUsage()
+			os.Exit(1)
+		}
+		handlers.HandleSecrets(workspaceID, apiKey, headers, page, secretsOptions)
 	} else if reconFlagProvided {
 		// Check if field parameter is provided
 		if reconValue == "" {
@@ -488,33 +507,32 @@ func main() {
 		field := ""
 		page := 1
 		limit := 100 // Default limit
+		reconOptions := api.IntelligenceQueryOptions{}
 
-		parts := strings.Fields(reconValue)
-		for _, part := range parts {
-			if strings.HasPrefix(part, "field=") {
-				field = strings.TrimPrefix(part, "field=")
+		parsedOptions := parseKeyValueOptions(reconValue)
+		field = parsedOptions["field"]
+		if value := parsedOptions["page"]; value != "" {
+			parsedPage, err := parsePositiveInt(value, "page")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use -recon \"field=<name> page=<number>\" (e.g., -recon \"field=emails page=3\")\n\n")
+				showUsage()
+				os.Exit(1)
 			}
-			if strings.HasPrefix(part, "page=") {
-				pageStr := strings.TrimPrefix(part, "page=")
-				if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
-					page = parsedPage
-				} else {
-					fmt.Fprintf(os.Stderr, "Error: Invalid page number format. Use -recon \"field=<name> page=<number>\" (e.g., -recon \"field=emails page=3\")\n\n")
-					showUsage()
-					os.Exit(1)
-				}
-			}
-			if strings.HasPrefix(part, "limit=") {
-				limitStr := strings.TrimPrefix(part, "limit=")
-				if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
-					limit = parsedLimit
-				} else {
-					fmt.Fprintf(os.Stderr, "Error: Invalid limit format. Use -recon \"field=<name> limit=<number>\" (e.g., -recon \"field=emails limit=50\")\n\n")
-					showUsage()
-					os.Exit(1)
-				}
-			}
+			page = parsedPage
 		}
+		if value := parsedOptions["limit"]; value != "" {
+			parsedLimit, err := parsePositiveInt(value, "limit")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: Invalid limit format. Use -recon \"field=<name> limit=<number>\" (e.g., -recon \"field=emails limit=50\")\n\n")
+				showUsage()
+				os.Exit(1)
+			}
+			limit = parsedLimit
+		}
+		reconOptions.RunID = parsedOptions["runid"]
+		reconOptions.Version = parsedOptions["version"]
+		reconOptions.Search = parsedOptions["search"]
+		reconOptions.Status = parsedOptions["status"]
 
 		if field == "" {
 			fmt.Fprintf(os.Stderr, "Error: Field name is required. Use -recon \"field=<name>\" or -recon \"field=<name> page=<number>\" (e.g., -recon \"field=emails\" or -recon \"field=emails page=3\")\n\n")
@@ -531,7 +549,12 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		handlers.HandleJSIntelligence(workspaceID, apiKey, headers, field, page, limit)
+		if reconOptions.Version != "" && reconOptions.RunID == "" {
+			fmt.Fprintf(os.Stderr, "Error: version requires runId. Use -recon \"field=<name> runId=<id> version=<number>\"\n\n")
+			showUsage()
+			os.Exit(1)
+		}
+		handlers.HandleJSIntelligence(workspaceID, apiKey, headers, field, page, limit, reconOptions)
 	} else if rsearchFlagProvided {
 		// Perform reverse search
 		if apiKey == "" {
@@ -588,6 +611,7 @@ func main() {
 		keyword := ""
 		page := 1
 		limit := 100 // Default limit
+		filterOptions := api.IntelligenceQueryOptions{}
 
 		for _, part := range parts {
 			if strings.HasPrefix(part, "page=") {
@@ -612,8 +636,21 @@ func main() {
 				// This should be fieldname=keyword
 				fieldParts := strings.SplitN(part, "=", 2)
 				if len(fieldParts) == 2 {
-					fieldname = strings.TrimSpace(fieldParts[0])
-					keyword = strings.TrimSpace(fieldParts[1])
+					key := strings.TrimSpace(fieldParts[0])
+					value := strings.TrimSpace(fieldParts[1])
+					switch strings.ToLower(key) {
+					case "runid":
+						filterOptions.RunID = value
+					case "version":
+						filterOptions.Version = value
+					case "status":
+						filterOptions.Status = value
+					default:
+						if fieldname == "" {
+							fieldname = key
+							keyword = value
+						}
+					}
 				}
 			}
 		}
@@ -631,18 +668,25 @@ func main() {
 			"urls":         true,
 			"emails":       true,
 			"gqlqueries":   true,
+			"gqlmutations": true,
 			"gqlmutaions":  true,
 			"sqlfragments": true,
 			"param":        true,
 		}
 
 		if !allowedFields[strings.ToLower(fieldname)] {
-			fmt.Fprintf(os.Stderr, "Error: Invalid field name. Allowed fields: jsurls, apiPaths, urls, emails, gqlQueries, gqlMutaions, sqlFragments, param\n\n")
+			fmt.Fprintf(os.Stderr, "Error: Invalid field name. Allowed fields: jsurls, apiPaths, urls, emails, gqlQueries, gqlMutations, gqlMutaions, sqlFragments, param\n\n")
 			showUsage()
 			os.Exit(1)
 		}
 
-		handlers.HandleFilter(workspaceID, apiKey, headers, fieldname, keyword, page, limit)
+		if filterOptions.Version != "" && filterOptions.RunID == "" {
+			fmt.Fprintf(os.Stderr, "Error: version requires runId. Use -filters \"<field>=<keyword> runId=<id> version=<number>\"\n\n")
+			showUsage()
+			os.Exit(1)
+		}
+
+		handlers.HandleFilter(workspaceID, apiKey, headers, fieldname, keyword, page, limit, filterOptions)
 	} else if issuesFlagProvided {
 		if apiKey == "" {
 			fmt.Fprintf(os.Stderr, "Error: API key is required. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
@@ -694,19 +738,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		handlers.HandleURLUpload(*urlFlag, workspaceID, apiKey, headers)
-	} else if *resumeFlag != "" {
-		// Resume from previous scan (resume flag takes precedence)
-		// API key and workspace ID must be provided via flags/env vars
-		if apiKey == "" {
-			fmt.Fprintf(os.Stderr, "Error: API key is required for resume. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
-			os.Exit(1)
-		}
-		if workspaceID == "" {
-			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required for resume. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
-			os.Exit(1)
-		}
-		handlers.HandleResume(*resumeFlag, workspaceID, apiKey, headers)
+		handlers.HandleURLUpload(*urlFlag, workspaceID, apiKey, headers, strings.TrimSpace(*runIDFlag))
 	} else if *domainFlag != "" {
 		// Domain scanning
 		if apiKey == "" {
@@ -717,7 +749,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		handlers.HandleDomainScan(*domainFlag, workspaceID, apiKey, "", headers, scanDepth)
+		handlers.HandleDomainScan(*domainFlag, workspaceID, apiKey, headers, scanDepth, strings.TrimSpace(*runIDFlag))
 	} else if codeScanPath != "" {
 		// Source code scan
 		if apiKey == "" {
@@ -728,7 +760,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		handlers.HandleCodeScan(codeScanPath, workspaceID, apiKey, headers)
+		handlers.HandleCodeScan(codeScanPath, workspaceID, apiKey, headers, strings.TrimSpace(*runIDFlag))
 	} else if *fileFlag != "" {
 		// File upload
 		if apiKey == "" {
@@ -739,7 +771,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		handlers.HandleFileUpload(*fileFlag, workspaceID, apiKey, "", headers)
+		handlers.HandleFileUpload(*fileFlag, workspaceID, apiKey, headers, strings.TrimSpace(*runIDFlag))
 	} else {
 		// No valid flag provided - show usage (showUsage will handle logo printing)
 		showUsage()
@@ -768,16 +800,15 @@ func showUsage() {
 	fmt.Fprintf(os.Stderr, "  -u <input>                                  Input URL to scan\n")
 	fmt.Fprintf(os.Stderr, "  -d <input>                                  Input domain to scan\n")
 	fmt.Fprintf(os.Stderr, "  -cs <input> | -code-scan <input>            Input source code file to scan\n")
-	fmt.Fprintf(os.Stderr, "  -f <input>                                  Input file of URLs to scan (one URL per line)\n")
+	fmt.Fprintf(os.Stderr, "  -f <input>                                  Upload a URL list file for server-side file scan\n")
 	fmt.Fprintf(os.Stderr, "  -cw <input> | --create-workspace <input>    Create a new workspace\n\n")
 
 	fmt.Fprintf(os.Stderr, "Configuration:\n")
 	fmt.Fprintf(os.Stderr, "  -key <input>                                API key (or add the API key to ~/.jsmon/credentials)\n")
 	fmt.Fprintf(os.Stderr, "  -wksp <wksp id>                             Workspace ID to scan the target\n")
+	fmt.Fprintf(os.Stderr, "  -runId <id>                                 Existing run ID for rescan or run-scoped counts\n")
 	fmt.Fprintf(os.Stderr, "  -depth <1..4> | -scan-depth <1..4>          Optional scan depth for domain scans\n")
 	fmt.Fprintf(os.Stderr, "  -H <input>                                  Custom HTTP headers to send along with request to scan\n")
-	fmt.Fprintf(os.Stderr, "  -resume                                     Resume scan using resume.config\n")
-	fmt.Fprintf(os.Stderr, "                                              (resumes from last scan failed due to force stop or API limits)\n")
 	fmt.Fprintf(os.Stderr, "  -silent                                     Silent the logo\n")
 	fmt.Fprintf(os.Stderr, "  -up, --update                                Check for updates and show update command\n")
 	fmt.Fprintf(os.Stderr, "  -duc, --disable-update-check                Disable automatic update check on startup\n\n")
@@ -793,17 +824,18 @@ func showUsage() {
 	fmt.Fprintf(os.Stderr, "  -issues \"page=<n> limit=<n> ...\"            Fetch dashboard vulnerabilities for a workspace (default: page=1, limit=100)\n")
 	fmt.Fprintf(os.Stderr, "                                              Supported options: severity, dateFrom, dateTo\n")
 	fmt.Fprintf(os.Stderr, "                                              Example: -issues \"page=1 limit=20 severity=critical,high dateFrom=2026-04-01 dateTo=2026-04-14\"\n")
-	fmt.Fprintf(os.Stderr, "  -secrets \"page=<number> limit=<number>\"      Fetch all secrets for a workspace (default: page=1, limit=100)\n")
-	fmt.Fprintf(os.Stderr, "  -recon \"field=<name> page=<number> limit=<number>\"\n")
+	fmt.Fprintf(os.Stderr, "  -secrets \"page=<number> limit=<number> runId=<id> version=<n>\"\n")
+	fmt.Fprintf(os.Stderr, "                                              Fetch all secrets for a workspace (default: page=1, limit=100)\n")
+	fmt.Fprintf(os.Stderr, "  -recon \"field=<name> page=<number> limit=<number> runId=<id> version=<n>\"\n")
 	fmt.Fprintf(os.Stderr, "                                              Fetch the reconnaissance data (default: page=1, limit=100)\n")
-	fmt.Fprintf(os.Stderr, "                                              Example: -recon \"field=emails page=3 limit=50\"\n\n")
+	fmt.Fprintf(os.Stderr, "                                              Example: -recon \"field=extractedUrls page=3 limit=50\"\n\n")
 
 	fmt.Fprintf(os.Stderr, "Reverse Search:\n")
 	fmt.Fprintf(os.Stderr, "  -rsearch \"<field name>=<value>\"             Search the source of the result where it comes from\n")
 	fmt.Fprintf(os.Stderr, "                                              Example: -rsearch \"apipaths=@azure/msal-browser\"\n\n")
 
 	fmt.Fprintf(os.Stderr, "Filter:\n")
-	fmt.Fprintf(os.Stderr, "  -filters \"<fieldname>=<keyword> page=<number> limit=<number>\"\n")
+	fmt.Fprintf(os.Stderr, "  -filters \"<fieldname>=<keyword> page=<number> limit=<number> runId=<id> version=<n>\"\n")
 	fmt.Fprintf(os.Stderr, "                                                    Match keywords in the field data in reconnaissance results\n")
 	fmt.Fprintf(os.Stderr, "                                                    (default: page=1, limit=100)\n")
 	fmt.Fprintf(os.Stderr, "                                                    Example: -filters \"urls=github.com page=2 limit=50\"\n\n")
@@ -813,11 +845,11 @@ func showUsage() {
 
 	fmt.Fprintf(os.Stderr, "Field Names:\n")
 	fmt.Fprintf(os.Stderr, "  -recon, -rsearch:\n")
-	fmt.Fprintf(os.Stderr, "    apiPaths, urls, extractedDomains, ip, emails, s3Buckets, s3takeovers,gqlQueries, gqlMutaions, gqlFragments, param (extracted parameter),\n")
+	fmt.Fprintf(os.Stderr, "    apiPaths, urls/jsurls (scanned URLs), extractedUrls, extractedDomains, ip, emails, s3Buckets, s3takeovers, gqlQueries, gqlMutations, gqlMutaions, gqlFragments, param (extracted parameter),\n")
 	fmt.Fprintf(os.Stderr, "    npmPackages, npmConfusion, guids, localhost, expiredDomains, allAwsAssets, queryparams, socialUrls,\n")
 	fmt.Fprintf(os.Stderr, "    portUrls, extensionUrls\n\n")
 	fmt.Fprintf(os.Stderr, "  -filters:\n")
-	fmt.Fprintf(os.Stderr, "    jsurls, apiPaths, urls, emails, gqlQueries, gqlMutaions,sqlFragments, param (extracted parameter)\n")
+	fmt.Fprintf(os.Stderr, "    jsurls, apiPaths, urls, emails, gqlQueries, gqlMutations, gqlMutaions, sqlFragments, param (extracted parameter)\n")
 }
 
 // parseHeadersAndFilterArgs parses headers from command line arguments and returns
@@ -854,6 +886,22 @@ func parseHeadersAndFilterArgs() (map[string]string, []string) {
 
 func looksLikeKeyValueArg(arg string) bool {
 	return arg != "" && !strings.HasPrefix(arg, "-") && strings.Contains(arg, "=")
+}
+
+func parseKeyValueOptions(raw string) map[string]string {
+	options := make(map[string]string)
+	for _, part := range strings.Fields(strings.TrimSpace(raw)) {
+		kv := strings.SplitN(part, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(kv[0]))
+		value := strings.TrimSpace(kv[1])
+		if key != "" && value != "" {
+			options[key] = value
+		}
+	}
+	return options
 }
 
 func parseCSVValues(value string) []string {
