@@ -92,6 +92,9 @@ The workspace ID is **not** read from the credentials file; it must be provided 
 - **`-H "Header-Name: value"`** — Add custom HTTP headers for scan requests (can be used multiple times).
 - **`-silent`** — Hide the JSMon logo when running commands.
 - **`-depth 1..4` / `-scan-depth 1..4`** — Control domain scan depth.
+- **`-wafbypass` / `-waf-bypass`** — Enable WAF bypass for URL, domain, and file scans.
+- **`-keywords "api,admin"` / `-scan-keywords "api,admin"`** — Add domain scan keywords.
+- **`-extensions "js,json"` / `-scan-extensions "js,json"`** — Limit domain scans to supported extensions.
 
 Scan commands submit work to JSMon's asynchronous pipeline. The CLI prints the queued `runId` and `version`; use those values with read commands when you want run-scoped or version-specific results.
 
@@ -114,7 +117,11 @@ Input:
 Configuration:
   -key <input>                                API key (or add the API key to ~/.jsmon/credentials)
   -wksp <wksp id>                             Workspace ID to scan the target
+  -runId <id>                                 Existing run ID for rescan or run-scoped counts
   -depth <1..4> | -scan-depth <1..4>          Optional scan depth for domain scans
+  -wafbypass | -waf-bypass                    Enable WAF bypass for URL, domain, and file scans
+  -keywords <a,b> | -scan-keywords <a,b>      Optional domain scan keywords
+  -extensions <a,b> | -scan-extensions <a,b>  Optional domain scan extensions
   -H <input>                                  Custom HTTP headers to send along with request to scan
   -silent                                     Silent the logo
   -up, --update                                Check for updates and show update command
@@ -174,7 +181,11 @@ jsmon -u "https://example.com/script.js" -wksp YOUR_WORKSPACE_ID
 ```bash
 jsmon -d "example.com" -wksp YOUR_WORKSPACE_ID
 jsmon -d "example.com" -depth 3 -wksp YOUR_WORKSPACE_ID
+jsmon -d "example.com" -depth 3 -keywords "api,admin" -extensions "js,json" -wksp YOUR_WORKSPACE_ID
+jsmon -d "example.com" -wafbypass -wksp YOUR_WORKSPACE_ID
 ```
+
+`-depth`, `-keywords`, and `-extensions` are domain-scan only. Supported extension values are `html`, `php`, `txt`, `js`, `xml`, `json`, `map`, `xhtml`, and `aspx`.
 
 ### Upload a source code file
 
@@ -188,6 +199,7 @@ Put one URL per line in a file, then submit the file to JSMon's server-side file
 
 ```bash
 jsmon -f urls.txt -wksp YOUR_WORKSPACE_ID
+jsmon -f urls.txt -wafbypass -wksp YOUR_WORKSPACE_ID
 ```
 
 The response includes `runId` and `version`. Re-submit the file if a queued file scan fails before processing.
@@ -303,8 +315,10 @@ jsmon -cw "My Project" -key YOUR_API_KEY
 
 # Scan targets
 jsmon -u "https://example.com/script.js" -wksp YOUR_WORKSPACE_ID
+jsmon -u "https://example.com/script.js" -wafbypass -wksp YOUR_WORKSPACE_ID
 jsmon -d "example.com" -wksp YOUR_WORKSPACE_ID
 jsmon -d "example.com" -depth 2 -wksp YOUR_WORKSPACE_ID
+jsmon -d "example.com" -depth 3 -keywords "api,admin" -extensions "js,json" -wafbypass -wksp YOUR_WORKSPACE_ID
 jsmon -cs app.js -wksp YOUR_WORKSPACE_ID
 jsmon -f urls.txt -wksp YOUR_WORKSPACE_ID
 

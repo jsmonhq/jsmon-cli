@@ -9,11 +9,11 @@ import (
 )
 
 // HandleDomainScan scans a domain. The exact value passed via -d is sent to the API.
-func HandleDomainScan(domain, workspaceID, apiKey string, headers map[string]string, scanDepth int, runID string) {
+func HandleDomainScan(domain, workspaceID, apiKey string, headers map[string]string, options api.ScanSubmitOptions) {
 	domain = strings.TrimSpace(domain)
 
 	client := api.NewClient(apiKey, headers)
-	response, err := client.ScanDomain(domain, workspaceID, runID, scanDepth)
+	response, err := client.ScanDomain(domain, workspaceID, options)
 	if err != nil {
 		// Check if it's an APIError
 		if apiErr, ok := err.(*api.APIError); ok {
