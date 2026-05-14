@@ -9,12 +9,12 @@ import (
 )
 
 // HandleURLUpload uploads a URL for scanning
-func HandleURLUpload(jsURL, workspaceID, apiKey string, headers map[string]string, runID string) {
+func HandleURLUpload(jsURL, workspaceID, apiKey string, headers map[string]string, options api.ScanSubmitOptions) {
 	fmt.Printf("Scanning started for - %s\n", jsURL)
 
 	client := api.NewClient(apiKey, headers)
 
-	response, err := client.UploadURL(jsURL, workspaceID, runID)
+	response, err := client.UploadURL(jsURL, workspaceID, options)
 	if err != nil {
 		// Check if it's an APIError to extract URL and message
 		if apiErr, ok := err.(*api.APIError); ok {

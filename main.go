@@ -12,6 +12,18 @@ import (
 	"github.com/jsmonhq/jsmon-cli/handlers"
 )
 
+var allowedScanExtensions = map[string]bool{
+	"html":  true,
+	"php":   true,
+	"txt":   true,
+	"js":    true,
+	"xml":   true,
+	"json":  true,
+	"map":   true,
+	"xhtml": true,
+	"aspx":  true,
+}
+
 func main() {
 	// Store original args
 	originalArgs := make([]string, len(os.Args))
@@ -242,6 +254,12 @@ func main() {
 	workspaceIDFlag := flag.String("wksp", "", "Workspace ID (or set in ~/.jsmon/credentials)")
 	depthFlag := flag.Int("depth", 0, "Optional scan depth for domain scans (1-4)")
 	depthFlagAlt := flag.Int("scan-depth", 0, "Optional scan depth for domain scans (1-4)")
+	wafBypassFlag := flag.Bool("wafbypass", false, "Enable WAF bypass for URL, domain, and file scans")
+	wafBypassFlagAlt := flag.Bool("waf-bypass", false, "Enable WAF bypass for URL, domain, and file scans")
+	keywordsFlag := flag.String("keywords", "", "Comma-separated domain scan keywords")
+	keywordsFlagAlt := flag.String("scan-keywords", "", "Comma-separated domain scan keywords")
+	extensionsFlag := flag.String("extensions", "", "Comma-separated domain scan extensions")
+	extensionsFlagAlt := flag.String("scan-extensions", "", "Comma-separated domain scan extensions")
 	countFlag := flag.Bool("count", false, "Show count analysis for the workspace")
 	runIDFlag := flag.String("runId", "", "Run ID for count analysis (optional)")
 	workspacesFlag := flag.Bool("workspaces", false, "List all workspaces")
@@ -320,6 +338,21 @@ func main() {
 	}
 	if scanDepth != 0 && (scanDepth < 1 || scanDepth > 4) {
 		fmt.Fprintf(os.Stderr, "Error: Scan depth must be between 1 and 4. Use -depth <1..4> or -scan-depth <1..4>\n")
+		os.Exit(1)
+	}
+	wafBypass := *wafBypassFlag || *wafBypassFlagAlt
+	keywordsRaw := strings.TrimSpace(*keywordsFlag)
+	if keywordsRaw == "" {
+		keywordsRaw = strings.TrimSpace(*keywordsFlagAlt)
+	}
+	extensionsRaw := strings.TrimSpace(*extensionsFlag)
+	if extensionsRaw == "" {
+		extensionsRaw = strings.TrimSpace(*extensionsFlagAlt)
+	}
+	keywords := parseCSVValues(keywordsRaw)
+	extensions := parseScanExtensions(extensionsRaw)
+	if invalidExtensions := invalidScanExtensions(extensions); len(invalidExtensions) > 0 {
+		fmt.Fprintf(os.Stderr, "Error: Unsupported scan extension(s): %s. Allowed extensions: html, php, txt, js, xml, json, map, xhtml, aspx\n", strings.Join(invalidExtensions, ", "))
 		os.Exit(1)
 	}
 
@@ -730,6 +763,10 @@ func main() {
 		handlers.HandleCreateWorkspace(workspaceName, apiKey, headers)
 	} else if *urlFlag != "" {
 		// URL upload
+		if scanDepth != 0 || len(keywords) > 0 || len(extensions) > 0 {
+			fmt.Fprintf(os.Stderr, "Error: -depth, -keywords, and -extensions are only supported with domain scans (-d)\n")
+			os.Exit(1)
+		}
 		if apiKey == "" {
 			fmt.Fprintf(os.Stderr, "Error: API key is required. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
 			os.Exit(1)
@@ -738,7 +775,10 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		handlers.HandleURLUpload(*urlFlag, workspaceID, apiKey, headers, strings.TrimSpace(*runIDFlag))
+		handlers.HandleURLUpload(*urlFlag, workspaceID, apiKey, headers, api.ScanSubmitOptions{
+			RunID:     strings.TrimSpace(*runIDFlag),
+			WAFBypass: wafBypass,
+		})
 	} else if *domainFlag != "" {
 		// Domain scanning
 		if apiKey == "" {
@@ -749,9 +789,19 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		handlers.HandleDomainScan(*domainFlag, workspaceID, apiKey, headers, scanDepth, strings.TrimSpace(*runIDFlag))
+		handlers.HandleDomainScan(*domainFlag, workspaceID, apiKey, headers, api.ScanSubmitOptions{
+			RunID:      strings.TrimSpace(*runIDFlag),
+			ScanDepth:  scanDepth,
+			WAFBypass:  wafBypass,
+			Keywords:   keywords,
+			Extensions: extensions,
+		})
 	} else if codeScanPath != "" {
 		// Source code scan
+		if scanDepth != 0 || len(keywords) > 0 || len(extensions) > 0 || wafBypass {
+			fmt.Fprintf(os.Stderr, "Error: Advanced scan flags are not supported with code scans (-cs or -code-scan)\n")
+			os.Exit(1)
+		}
 		if apiKey == "" {
 			fmt.Fprintf(os.Stderr, "Error: API key is required. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
 			os.Exit(1)
@@ -763,6 +813,10 @@ func main() {
 		handlers.HandleCodeScan(codeScanPath, workspaceID, apiKey, headers, strings.TrimSpace(*runIDFlag))
 	} else if *fileFlag != "" {
 		// File upload
+		if scanDepth != 0 || len(keywords) > 0 || len(extensions) > 0 {
+			fmt.Fprintf(os.Stderr, "Error: -depth, -keywords, and -extensions are only supported with domain scans (-d)\n")
+			os.Exit(1)
+		}
 		if apiKey == "" {
 			fmt.Fprintf(os.Stderr, "Error: API key is required. Use -key flag, add to ~/.jsmon/credentials, or set JSMON_API_KEY environment variable\n")
 			os.Exit(1)
@@ -771,7 +825,10 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: Workspace ID is required. Use -wksp flag or set JSMON_WORKSPACE_ID environment variable\n")
 			os.Exit(1)
 		}
-		handlers.HandleFileUpload(*fileFlag, workspaceID, apiKey, headers, strings.TrimSpace(*runIDFlag))
+		handlers.HandleFileUpload(*fileFlag, workspaceID, apiKey, headers, api.ScanSubmitOptions{
+			RunID:     strings.TrimSpace(*runIDFlag),
+			WAFBypass: wafBypass,
+		})
 	} else {
 		// No valid flag provided - show usage (showUsage will handle logo printing)
 		showUsage()
@@ -808,6 +865,9 @@ func showUsage() {
 	fmt.Fprintf(os.Stderr, "  -wksp <wksp id>                             Workspace ID to scan the target\n")
 	fmt.Fprintf(os.Stderr, "  -runId <id>                                 Existing run ID for rescan or run-scoped counts\n")
 	fmt.Fprintf(os.Stderr, "  -depth <1..4> | -scan-depth <1..4>          Optional scan depth for domain scans\n")
+	fmt.Fprintf(os.Stderr, "  -wafbypass | -waf-bypass                    Enable WAF bypass for URL, domain, and file scans\n")
+	fmt.Fprintf(os.Stderr, "  -keywords <a,b> | -scan-keywords <a,b>      Optional domain scan keywords\n")
+	fmt.Fprintf(os.Stderr, "  -extensions <a,b> | -scan-extensions <a,b>  Optional domain scan extensions\n")
 	fmt.Fprintf(os.Stderr, "  -H <input>                                  Custom HTTP headers to send along with request to scan\n")
 	fmt.Fprintf(os.Stderr, "  -silent                                     Silent the logo\n")
 	fmt.Fprintf(os.Stderr, "  -up, --update                                Check for updates and show update command\n")
@@ -818,6 +878,16 @@ func showUsage() {
 	fmt.Fprintf(os.Stderr, "  --urls \"page=<page number> limit=<number>\"   Fetch all scanned URLs (default: page=1, limit=100)\n")
 	fmt.Fprintf(os.Stderr, "  --domains \"page=<page number> limit=<number>\" Fetch all scanned domains (default: page=1, limit=100)\n")
 	fmt.Fprintf(os.Stderr, "  --files \"page=<page number> limit=<number>\"  Fetch all scanned files (default: page=1, limit=100)\n\n")
+
+	fmt.Fprintf(os.Stderr, "Advanced Scan:\n")
+	fmt.Fprintf(os.Stderr, "  Supported scan types:\n")
+	fmt.Fprintf(os.Stderr, "    -wafbypass                               URL, domain, and file scans\n")
+	fmt.Fprintf(os.Stderr, "    -depth, -keywords, -extensions           Domain scans only\n")
+	fmt.Fprintf(os.Stderr, "  Allowed extensions: html, php, txt, js, xml, json, map, xhtml, aspx\n")
+	fmt.Fprintf(os.Stderr, "  Examples:\n")
+	fmt.Fprintf(os.Stderr, "    jsmon -u \"https://example.com/app.js\" -wafbypass -wksp <wksp id>\n")
+	fmt.Fprintf(os.Stderr, "    jsmon -d \"example.com\" -depth 3 -keywords \"api,admin\" -extensions \"js,json\" -wafbypass -wksp <wksp id>\n")
+	fmt.Fprintf(os.Stderr, "    jsmon -f urls.txt -wafbypass -wksp <wksp id>\n\n")
 
 	fmt.Fprintf(os.Stderr, "Data:\n")
 	fmt.Fprintf(os.Stderr, "  -workspaces                                 Fetch all workspaces\n")
@@ -907,13 +977,39 @@ func parseKeyValueOptions(raw string) map[string]string {
 func parseCSVValues(value string) []string {
 	parts := strings.Split(value, ",")
 	values := make([]string, 0, len(parts))
+	seen := make(map[string]bool)
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
-		if part != "" {
+		if part != "" && !seen[part] {
+			seen[part] = true
 			values = append(values, part)
 		}
 	}
 	return values
+}
+
+func parseScanExtensions(value string) []string {
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	seen := make(map[string]bool)
+	for _, part := range parts {
+		part = strings.TrimSpace(strings.ToLower(strings.TrimLeft(part, ".")))
+		if part != "" && !seen[part] {
+			seen[part] = true
+			values = append(values, part)
+		}
+	}
+	return values
+}
+
+func invalidScanExtensions(extensions []string) []string {
+	invalid := make([]string, 0)
+	for _, extension := range extensions {
+		if !allowedScanExtensions[extension] {
+			invalid = append(invalid, extension)
+		}
+	}
+	return invalid
 }
 
 func parsePositiveInt(value, fieldName string) (int, error) {

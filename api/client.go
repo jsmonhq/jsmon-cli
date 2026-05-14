@@ -91,6 +91,15 @@ type ScanSubmitResponse struct {
 	Version int    `json:"version,omitempty"`
 }
 
+// ScanSubmitOptions contains optional fields accepted by scan submission endpoints.
+type ScanSubmitOptions struct {
+	RunID      string
+	ScanDepth  int
+	WAFBypass  bool
+	Keywords   []string
+	Extensions []string
+}
+
 // NewClient creates a new API client
 func NewClient(apiKey string, headers map[string]string) *Client {
 	// Ensure headers map is never nil
@@ -239,14 +248,17 @@ func (c *Client) CreateWorkspace(workspaceName string) (string, error) {
 }
 
 // UploadURL uploads a URL for scanning
-func (c *Client) UploadURL(jsURL, workspaceID, runID string) (*ScanSubmitResponse, error) {
+func (c *Client) UploadURL(jsURL, workspaceID string, options ScanSubmitOptions) (*ScanSubmitResponse, error) {
 	endpoint := APIBaseURL + "/uploadUrl?wkspId=" + url.QueryEscape(workspaceID) + "&source=" + url.QueryEscape("cliScan")
 
 	payload := map[string]interface{}{
 		"url": jsURL,
 	}
-	if strings.TrimSpace(runID) != "" {
-		payload["runId"] = strings.TrimSpace(runID)
+	if strings.TrimSpace(options.RunID) != "" {
+		payload["runId"] = strings.TrimSpace(options.RunID)
+	}
+	if options.WAFBypass {
+		payload["wafbypass"] = true
 	}
 
 	// Include custom headers in the payload if any are provided
@@ -293,17 +305,26 @@ func (c *Client) UploadURL(jsURL, workspaceID, runID string) (*ScanSubmitRespons
 }
 
 // ScanDomain scans a domain with an optional scan depth.
-func (c *Client) ScanDomain(domain, workspaceID, runID string, scanDepth int) (*ScanSubmitResponse, error) {
+func (c *Client) ScanDomain(domain, workspaceID string, options ScanSubmitOptions) (*ScanSubmitResponse, error) {
 	endpoint := APIBaseURL + "/automateScanDomain?wkspId=" + url.QueryEscape(workspaceID) + "&source=" + url.QueryEscape("cliScan")
 
 	payload := map[string]interface{}{
 		"domain": domain,
 	}
-	if strings.TrimSpace(runID) != "" {
-		payload["runId"] = strings.TrimSpace(runID)
+	if strings.TrimSpace(options.RunID) != "" {
+		payload["runId"] = strings.TrimSpace(options.RunID)
 	}
-	if scanDepth > 0 {
-		payload["scanDepth"] = scanDepth
+	if options.ScanDepth > 0 {
+		payload["scanDepth"] = options.ScanDepth
+	}
+	if options.WAFBypass {
+		payload["wafbypass"] = true
+	}
+	if len(options.Keywords) > 0 {
+		payload["keywords"] = options.Keywords
+	}
+	if len(options.Extensions) > 0 {
+		payload["extensions"] = options.Extensions
 	}
 
 	// Include custom headers in the payload if any are provided
@@ -412,7 +433,7 @@ func (c *Client) UploadCodeFile(filePath, workspaceID, runID string) (*ScanSubmi
 }
 
 // UploadFile uploads a file for scanning
-func (c *Client) UploadFile(filePath, workspaceID, runID string) (*ScanSubmitResponse, error) {
+func (c *Client) UploadFile(filePath, workspaceID string, options ScanSubmitOptions) (*ScanSubmitResponse, error) {
 	endpoint := APIBaseURL + "/uploadFile?wkspId=" + url.QueryEscape(workspaceID) + "&source=" + url.QueryEscape("cliScan")
 
 	file, err := os.Open(filePath)
@@ -436,9 +457,15 @@ func (c *Client) UploadFile(filePath, workspaceID, runID string) (*ScanSubmitRes
 		return nil, fmt.Errorf("failed to copy file data: %w", err)
 	}
 
-	if strings.TrimSpace(runID) != "" {
-		if err = writer.WriteField("runId", strings.TrimSpace(runID)); err != nil {
+	if strings.TrimSpace(options.RunID) != "" {
+		if err = writer.WriteField("runId", strings.TrimSpace(options.RunID)); err != nil {
 			return nil, fmt.Errorf("failed to add runId field: %w", err)
+		}
+	}
+
+	if options.WAFBypass {
+		if err = writer.WriteField("wafbypass", "true"); err != nil {
+			return nil, fmt.Errorf("failed to add wafbypass field: %w", err)
 		}
 	}
 

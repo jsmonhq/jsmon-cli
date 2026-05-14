@@ -15,11 +15,11 @@ type FileScanResult struct {
 }
 
 // HandleFileUpload uploads a file of URLs for server-side file scanning.
-func HandleFileUpload(filePath, workspaceID, apiKey string, headers map[string]string, runID string) {
+func HandleFileUpload(filePath, workspaceID, apiKey string, headers map[string]string, options api.ScanSubmitOptions) {
 	fmt.Printf("Scanning started for - %s\n", filePath)
 
 	client := api.NewClient(apiKey, headers)
-	response, err := client.UploadFile(filePath, workspaceID, runID)
+	response, err := client.UploadFile(filePath, workspaceID, options)
 	if err != nil {
 		if apiErr, ok := err.(*api.APIError); ok {
 			if apiErr.IsAuthError() {
