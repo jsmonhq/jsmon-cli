@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jsmonhq/jsmon-cli/api"
+	"github.com/jsmonhq/jsmon-cli/v2/api"
 )
 
 func printScanQueued(label, target string, response *api.ScanSubmitResponse) {

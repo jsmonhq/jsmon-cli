@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jsmonhq/jsmon-cli/api"
+	"github.com/jsmonhq/jsmon-cli/v2/api"
 )
 
 // HandleWorkspaces displays all workspaces for the user

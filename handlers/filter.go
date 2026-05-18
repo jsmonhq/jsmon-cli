@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jsmonhq/jsmon-cli/api"
+	"github.com/jsmonhq/jsmon-cli/v2/api"
 )
 
 // HandleFilter displays filtered reconnaissance data for a workspace

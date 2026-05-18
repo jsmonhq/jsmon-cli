@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jsmonhq/jsmon-cli/api"
+	"github.com/jsmonhq/jsmon-cli/v2/api"
 )
 
 // HandleCodeScan uploads a source code file for code scanning.

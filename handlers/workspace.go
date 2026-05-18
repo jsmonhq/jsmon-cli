@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jsmonhq/jsmon-cli/api"
+	"github.com/jsmonhq/jsmon-cli/v2/api"
 )
 
 // HandleCreateWorkspace creates a new workspace

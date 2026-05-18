@@ -5,4 +5,3 @@ const (
 	ColorGreen = "\033[32m"
 	ColorReset = "\033[0m"
 )
-

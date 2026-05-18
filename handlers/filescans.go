@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jsmonhq/jsmon-cli/api"
+	"github.com/jsmonhq/jsmon-cli/v2/api"
 )
 
 // HandleFileScans displays file scans for a workspace in JSON format
@@ -40,4 +40,3 @@ func HandleFileScans(workspaceID, apiKey string, headers map[string]string, page
 
 	fmt.Println(string(jsonOutput))
 }
-

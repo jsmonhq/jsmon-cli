@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jsmonhq/jsmon-cli/api"
+	"github.com/jsmonhq/jsmon-cli/v2/api"
 )
 
 // HandleDomains displays domain scans for a workspace in JSON format

@@ -47,8 +47,11 @@ jsmon -recon "field=emails page=1" -wksp YOUR_WORKSPACE_ID
 ### Option 1: Install from Go (recommended)
 
 ```bash
-go install github.com/jsmonhq/jsmon-cli@latest
+go install github.com/jsmonhq/jsmon-cli/v2@latest
 ```
+
+For v2 and newer releases, include `/v2` in the module path. The old
+`github.com/jsmonhq/jsmon-cli@latest` path resolves only the v1 release line.
 
 Ensure your Go `bin` directory is in your `PATH` (e.g. `$HOME/go/bin`). The binary is typically named `jsmon-cli`; you can rename or symlink it to `jsmon` if you prefer.
 
@@ -302,7 +305,7 @@ Format: `"fieldname=value"`. Use **extractedDomains** (not `domains`) for domain
 To upgrade after a new release:
 
 ```bash
-go install github.com/jsmonhq/jsmon-cli@latest
+go install github.com/jsmonhq/jsmon-cli/v2@latest
 ```
 
 ---
