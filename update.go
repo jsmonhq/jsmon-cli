@@ -15,9 +15,11 @@ import (
 
 const (
 	// Version is the current version of the CLI (must match the latest release tag)
-	Version = "2.1.0"
+	Version = "2.1.1"
 	// GitHubRepo is the repository for checking updates
 	GitHubRepo = "jsmonhq/jsmon-cli"
+	// InstallModule is the Go module path users install from.
+	InstallModule = "github.com/jsmonhq/jsmon-cli/v2"
 )
 
 // GitHubRelease represents a GitHub release
@@ -69,6 +71,7 @@ func checkForUpdate() {
 	// Simple version comparison (works for semantic versioning)
 	if compareVersions(latestVersion, currentVersion) > 0 {
 		fmt.Fprintf(os.Stderr, "\n[INF] A new version is available: %s (current: %s)\n", latestVersion, currentVersion)
+		fmt.Fprintf(os.Stderr, "[INF] Update with: go install %s@latest\n\n", InstallModule)
 	}
 }
 
@@ -120,7 +123,7 @@ func checkAndUpdateCLI() {
 		os.Exit(0)
 	}
 
-	cmd := exec.Command("go", "install", "github.com/jsmonhq/jsmon-cli@latest")
+	cmd := exec.Command("go", "install", InstallModule+"@latest")
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	if err := cmd.Run(); err != nil {

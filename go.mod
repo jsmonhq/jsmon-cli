@@ -1,3 +1,3 @@
-module github.com/jsmonhq/jsmon-cli
+module github.com/jsmonhq/jsmon-cli/v2
 
 go 1.21

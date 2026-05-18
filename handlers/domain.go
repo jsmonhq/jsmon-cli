@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jsmonhq/jsmon-cli/api"
+	"github.com/jsmonhq/jsmon-cli/v2/api"
 )
 
 // HandleDomainScan scans a domain. The exact value passed via -d is sent to the API.

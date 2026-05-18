@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jsmonhq/jsmon-cli/api"
-	"github.com/jsmonhq/jsmon-cli/config"
-	"github.com/jsmonhq/jsmon-cli/handlers"
+	"github.com/jsmonhq/jsmon-cli/v2/api"
+	"github.com/jsmonhq/jsmon-cli/v2/config"
+	"github.com/jsmonhq/jsmon-cli/v2/handlers"
 )
 
 var allowedScanExtensions = map[string]bool{

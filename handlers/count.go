@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jsmonhq/jsmon-cli/api"
+	"github.com/jsmonhq/jsmon-cli/v2/api"
 )
 
 // countItem represents a label-value pair for sorting
