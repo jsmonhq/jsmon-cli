@@ -1245,8 +1245,6 @@ func mapFieldToOptions(field string) string {
 		"expireddomains":   "expireddomains",
 		"awsassets":        "awsassets",
 		"allawsassets":     "awsassets",
-		"queryparam":       "queryparams",
-		"queryparams":      "queryparams",
 		"socialurls":       "socialmediaurls",
 		"porturls":         "filteredporturls",
 		"extensionurls":    "fileextensionurls",

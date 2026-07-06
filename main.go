@@ -1,4 +1,4 @@
-package main
+package jsmoncli
 
 import (
 	"flag"
@@ -24,7 +24,7 @@ var allowedScanExtensions = map[string]bool{
 	"aspx":  true,
 }
 
-func main() {
+func Main() {
 	// Store original args
 	originalArgs := make([]string, len(os.Args))
 	copy(originalArgs, os.Args)
@@ -851,7 +851,7 @@ func showUsage() {
 		fmt.Fprint(os.Stderr, LogoColor)
 	}
 
-	fmt.Fprintf(os.Stderr, "\nUsage: jsmon-cli [OPTIONS]\n\n")
+	fmt.Fprintf(os.Stderr, "\nUsage: jsmon [OPTIONS]\n\n")
 
 	fmt.Fprintf(os.Stderr, "Input:\n")
 	fmt.Fprintf(os.Stderr, "  -u <input>                                  Input URL to scan\n")
@@ -916,7 +916,7 @@ func showUsage() {
 	fmt.Fprintf(os.Stderr, "Field Names:\n")
 	fmt.Fprintf(os.Stderr, "  -recon, -rsearch:\n")
 	fmt.Fprintf(os.Stderr, "    apiPaths, urls/jsurls (scanned URLs), extractedUrls, extractedDomains, ip, emails, s3Buckets, s3takeovers, gqlQueries, gqlMutations, gqlMutaions, gqlFragments, param (extracted parameter),\n")
-	fmt.Fprintf(os.Stderr, "    npmPackages, npmConfusion, guids, localhost, expiredDomains, allAwsAssets, queryparams, socialUrls,\n")
+	fmt.Fprintf(os.Stderr, "    npmPackages, npmConfusion, guids, localhost, expiredDomains, allAwsAssets, socialUrls,\n")
 	fmt.Fprintf(os.Stderr, "    portUrls, extensionUrls\n\n")
 	fmt.Fprintf(os.Stderr, "  -filters:\n")
 	fmt.Fprintf(os.Stderr, "    jsurls, apiPaths, urls, emails, gqlQueries, gqlMutations, gqlMutaions, sqlFragments, param (extracted parameter)\n")

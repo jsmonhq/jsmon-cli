@@ -1,4 +1,4 @@
-package main
+package jsmoncli
 
 import (
 	"encoding/json"
@@ -18,8 +18,8 @@ const (
 	Version = "2.1.1"
 	// GitHubRepo is the repository for checking updates
 	GitHubRepo = "jsmonhq/jsmon-cli"
-	// InstallModule is the Go module path users install from.
-	InstallModule = "github.com/jsmonhq/jsmon-cli/v2"
+	// InstallModule is the Go command package path users install from.
+	InstallModule = "github.com/jsmonhq/jsmon-cli/v2/cmd/jsmon"
 )
 
 // GitHubRelease represents a GitHub release

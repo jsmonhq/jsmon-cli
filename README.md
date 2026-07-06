@@ -47,23 +47,20 @@ jsmon -recon "field=emails page=1" -wksp YOUR_WORKSPACE_ID
 ### Option 1: Install from Go (recommended)
 
 ```bash
-go install github.com/jsmonhq/jsmon-cli/v2@latest
+go install github.com/jsmonhq/jsmon-cli/v2/cmd/jsmon@latest
 ```
 
-For v2 and newer releases, include `/v2` in the module path. The old
-`github.com/jsmonhq/jsmon-cli@latest` path resolves only the v1 release line.
-
-Ensure your Go `bin` directory is in your `PATH` (e.g. `$HOME/go/bin`). The binary is typically named `jsmon-cli`; you can rename or symlink it to `jsmon` if you prefer.
+Ensure your Go `bin` directory is in your `PATH` (e.g. `$HOME/go/bin`). The installed command is `jsmon`.
 
 ### Option 2: Build from source
 
 ```bash
 git clone https://github.com/jsmonhq/jsmon-cli.git
 cd jsmon-cli
-go build -o jsmon .
+go build -o jsmon ./cmd/jsmon
 ```
 
-Use `-o jsmon` to get a binary named `jsmon`.
+This creates a local `jsmon` binary from source.
 
 ---
 
@@ -71,7 +68,7 @@ Use `-o jsmon` to get a binary named `jsmon`.
 
 ### API key
 
-Get your API key from [JSMon](https://jsmon.sh). The CLI looks for it in this order:
+Get your API key from [JSMon](https://app.jsmon.sh/settings). The CLI looks for it in this order:
 
 | Priority | Source |
 |----------|--------|
@@ -108,7 +105,7 @@ Scan commands submit work to JSMon's asynchronous pipeline. The CLI prints the q
 ## Commands Overview
 
 ```
-Usage: jsmon-cli [OPTIONS]
+Usage: jsmon [OPTIONS]
 
 Input:
   -u <input>                                  Input URL to scan
@@ -136,6 +133,16 @@ Scans:
   --domains "page=<page number> limit=<number>" Fetch all scanned domains (default: page=1, limit=100)
   --files "page=<page number> limit=<number>"  Fetch all scanned files (default: page=1, limit=100)
 
+Advanced Scan:
+  Supported scan types:
+    -wafbypass                               URL, domain, and file scans
+    -depth, -keywords, -extensions           Domain scans only
+  Allowed extensions: html, php, txt, js, xml, json, map, xhtml, aspx
+  Examples:
+    jsmon -u "https://example.com/app.js" -wafbypass -wksp <wksp id>
+    jsmon -d "example.com" -depth 3 -keywords "api,admin" -extensions "js,json" -wafbypass -wksp <wksp id>
+    jsmon -f urls.txt -wafbypass -wksp <wksp id>
+
 Data:
   -workspaces                                 Fetch all workspaces
   -issues "page=<n> limit=<n> ..."            Fetch dashboard vulnerabilities for a workspace (default: page=1, limit=100)
@@ -162,7 +169,7 @@ Help:
 Field Names:
   -recon, -rsearch:
     apiPaths, urls/jsurls (scanned URLs), extractedUrls, extractedDomains, ip, emails, s3Buckets, s3takeovers, gqlQueries, gqlMutations, gqlMutaions, gqlFragments, param (extracted parameter),
-    npmPackages, npmConfusion, guids, localhost, expiredDomains, allAwsAssets, queryparams, socialUrls,
+    npmPackages, npmConfusion, guids, localhost, expiredDomains, allAwsAssets, socialUrls,
     portUrls, extensionUrls
 
   -filters:
@@ -264,7 +271,7 @@ Get extracted intelligence for a **field** and optional pagination:
 jsmon -recon "field=emails page=1 limit=50" -wksp YOUR_WORKSPACE_ID
 ```
 
-**Common fields:** `apiPaths`, `urls`/`jsurls` for scanned URLs, `extractedUrls` for automation-extracted URL strings, `extractedDomains`, `expiredDomains`, `ip`, `emails`, `s3Buckets` (`awsassets.s3buckets`), `gqlQueries`, `gqlMutations`, `gqlFragments`, `param`, `queryparams`, `allAwsAssets`, `npmPackages`, `socialUrls`, `portUrls`, `extensionUrls`, and others (see `jsmon -h`).
+**Common fields:** `apiPaths`, `urls`/`jsurls` for scanned URLs, `extractedUrls` for automation-extracted URL strings, `extractedDomains`, `expiredDomains`, `ip`, `emails`, `s3Buckets` (`awsassets.s3buckets`), `gqlQueries`, `gqlMutations`, `gqlFragments`, `param`, `allAwsAssets`, `npmPackages`, `socialUrls`, `portUrls`, `extensionUrls`, and others (see `jsmon -h`).
 
 Add `runId=<id>` to scope results to one scan. Add `version=<n>` with `runId` to inspect a specific monitoring/rescan version.
 
@@ -305,7 +312,7 @@ Format: `"fieldname=value"`. Use **extractedDomains** (not `domains`) for domain
 To upgrade after a new release:
 
 ```bash
-go install github.com/jsmonhq/jsmon-cli/v2@latest
+go install github.com/jsmonhq/jsmon-cli/v2/cmd/jsmon@latest
 ```
 
 ---
