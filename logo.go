@@ -1,4 +1,4 @@
-package main
+package jsmoncli
 
 const LogoColor = `
 ` + "\033[36m" + `     ██╗███████╗███╗   ███╗ ██████╗ ███╗   ██╗` + "\033[0m" + `
