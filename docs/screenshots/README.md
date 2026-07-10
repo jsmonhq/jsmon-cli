@@ -1,4 +1,4 @@
-# Screenshots for JSMon CLI README
+# Screenshots for Jsmon CLI README
 
 Add screenshots here so the main README displays them. Use the filenames below so links work.
 
