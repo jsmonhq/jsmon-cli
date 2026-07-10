@@ -1,8 +1,8 @@
-# JSMon CLI
+# Jsmon CLI
 
-The official command-line tool for [JSMon](https://jsmon.sh). Scan URLs, domains, and source code, upload files, and explore reconnaissance and vulnerability data from your terminal.
+The official command-line tool for [Jsmon](https://jsmon.sh). Scan URLs, domains, and source code, upload files, and explore reconnaissance and vulnerability data from your terminal.
 
-![JSMon CLI - Help](docs/screenshots/help.png)
+![Jsmon CLI - Help](docs/screenshots/help.png)
 
 ---
 
@@ -68,7 +68,7 @@ This creates a local `jsmon` binary from source.
 
 ### API key
 
-Get your API key from [JSMon](https://app.jsmon.sh/settings). The CLI looks for it in this order:
+Get your API key from [Jsmon](https://app.jsmon.sh/settings). The CLI looks for it in this order:
 
 | Priority | Source |
 |----------|--------|
@@ -90,13 +90,13 @@ The workspace ID is **not** read from the credentials file; it must be provided 
 ### Optional
 
 - **`-H "Header-Name: value"`** — Add custom HTTP headers for scan requests (can be used multiple times).
-- **`-silent`** — Hide the JSMon logo when running commands.
+- **`-silent`** — Hide the Jsmon logo when running commands.
 - **`-depth 1..4` / `-scan-depth 1..4`** — Control domain scan depth.
 - **`-wafbypass` / `-waf-bypass`** — Enable WAF bypass for URL, domain, and file scans.
 - **`-keywords "api,admin"` / `-scan-keywords "api,admin"`** — Add domain scan keywords.
 - **`-extensions "js,json"` / `-scan-extensions "js,json"`** — Limit domain scans to supported extensions.
 
-Scan commands submit work to JSMon's asynchronous pipeline. The CLI prints the queued `runId` and `version`; use those values with read commands when you want run-scoped or version-specific results.
+Scan commands submit work to Jsmon's asynchronous pipeline. The CLI prints the queued `runId` and `version`; use those values with read commands when you want run-scoped or version-specific results.
 
 ![Configuration - Credentials and workspace](docs/screenshots/config.png)
 
@@ -116,6 +116,7 @@ Input:
 
 Configuration:
   -key <input>                                API key (or add the API key to ~/.jsmon/credentials)
+                                              Visit: https://app.jsmon.sh/settings
   -wksp <wksp id>                             Workspace ID to scan the target
   -runId <id>                                 Existing run ID for rescan or run-scoped counts
   -depth <1..4> | -scan-depth <1..4>          Optional scan depth for domain scans
@@ -205,7 +206,7 @@ jsmon -cs app.js -wksp YOUR_WORKSPACE_ID
 
 ### Upload multiple URLs from a file
 
-Put one URL per line in a file, then submit the file to JSMon's server-side file scan:
+Put one URL per line in a file, then submit the file to Jsmon's server-side file scan:
 
 ```bash
 jsmon -f urls.txt -wksp YOUR_WORKSPACE_ID
@@ -350,4 +351,4 @@ jsmon -rsearch "apipaths=/auth/login" -wksp YOUR_WORKSPACE_ID
 ## License & Links
 
 - **GitHub:** [github.com/jsmonhq/jsmon-cli](https://github.com/jsmonhq/jsmon-cli)
-- **JSMon:** [jsmon.sh](https://jsmon.sh)
+- **Jsmon:** [jsmon.sh](https://jsmon.sh)

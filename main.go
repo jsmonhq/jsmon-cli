@@ -250,7 +250,7 @@ func Main() {
 	fileFlag := flag.String("f", "", "Input file of URLs to scan (one URL per line)")
 	createWorkspaceFlag := flag.String("cw", "", "Create a new workspace (use --create-workspace as alternative)")
 	createWorkspaceFlagAlt := flag.String("create-workspace", "", "Create a new workspace")
-	apiKeyFlag := flag.String("key", "", "JSMon API key (or set in ~/.jsmon/credentials)")
+	apiKeyFlag := flag.String("key", "", "Jsmon API key (or set in ~/.jsmon/credentials)")
 	workspaceIDFlag := flag.String("wksp", "", "Workspace ID (or set in ~/.jsmon/credentials)")
 	depthFlag := flag.Int("depth", 0, "Optional scan depth for domain scans (1-4)")
 	depthFlagAlt := flag.Int("scan-depth", 0, "Optional scan depth for domain scans (1-4)")
@@ -862,6 +862,7 @@ func showUsage() {
 
 	fmt.Fprintf(os.Stderr, "Configuration:\n")
 	fmt.Fprintf(os.Stderr, "  -key <input>                                API key (or add the API key to ~/.jsmon/credentials)\n")
+	fmt.Fprintf(os.Stderr, "                                              Visit: https://app.jsmon.sh/settings\n")
 	fmt.Fprintf(os.Stderr, "  -wksp <wksp id>                             Workspace ID to scan the target\n")
 	fmt.Fprintf(os.Stderr, "  -runId <id>                                 Existing run ID for rescan or run-scoped counts\n")
 	fmt.Fprintf(os.Stderr, "  -depth <1..4> | -scan-depth <1..4>          Optional scan depth for domain scans\n")

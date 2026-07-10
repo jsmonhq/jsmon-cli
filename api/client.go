@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-// APIError represents an error from the JSMon API
+// APIError represents an error from the Jsmon API
 type APIError struct {
 	URL     string
 	Message string
