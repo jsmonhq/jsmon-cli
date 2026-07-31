@@ -53,8 +53,17 @@ func Main() {
 		}
 	}
 
-	// Check for updates unless disabled
-	if !disableUpdateCheck {
+	// Check for -silent flag early (suppresses logo and update-check output)
+	silentEarly := false
+	for _, arg := range originalArgs {
+		if arg == "-silent" {
+			silentEarly = true
+			break
+		}
+	}
+
+	// Check for updates unless disabled or running silently
+	if !disableUpdateCheck && !silentEarly {
 		checkForUpdate()
 	}
 
@@ -253,13 +262,9 @@ func Main() {
 	apiKeyFlag := flag.String("key", "", "Jsmon API key (or set in ~/.jsmon/credentials)")
 	workspaceIDFlag := flag.String("wksp", "", "Workspace ID (or set in ~/.jsmon/credentials)")
 	depthFlag := flag.Int("depth", 0, "Optional scan depth for domain scans (1-4)")
-	depthFlagAlt := flag.Int("scan-depth", 0, "Optional scan depth for domain scans (1-4)")
 	wafBypassFlag := flag.Bool("wafbypass", false, "Enable WAF bypass for URL, domain, and file scans")
-	wafBypassFlagAlt := flag.Bool("waf-bypass", false, "Enable WAF bypass for URL, domain, and file scans")
 	keywordsFlag := flag.String("keywords", "", "Comma-separated domain scan keywords")
-	keywordsFlagAlt := flag.String("scan-keywords", "", "Comma-separated domain scan keywords")
 	extensionsFlag := flag.String("extensions", "", "Comma-separated domain scan extensions")
-	extensionsFlagAlt := flag.String("scan-extensions", "", "Comma-separated domain scan extensions")
 	countFlag := flag.Bool("count", false, "Show count analysis for the workspace")
 	runIDFlag := flag.String("runId", "", "Run ID for count analysis (optional)")
 	workspacesFlag := flag.Bool("workspaces", false, "List all workspaces")
@@ -301,7 +306,7 @@ func Main() {
 		fmt.Fprint(os.Stderr, LogoColor)
 	}
 
-	// Get API key: flag > credentials file > env var
+	// Get API key: flag > credentials file > JSMON_API_KEY env var > API_KEY env var
 	apiKey := *apiKeyFlag
 	if apiKey == "" {
 		// Try to read from credentials file
@@ -333,22 +338,13 @@ func Main() {
 		codeScanPath = *codeScanFlagAlt
 	}
 	scanDepth := *depthFlag
-	if scanDepth == 0 {
-		scanDepth = *depthFlagAlt
-	}
 	if scanDepth != 0 && (scanDepth < 1 || scanDepth > 4) {
-		fmt.Fprintf(os.Stderr, "Error: Scan depth must be between 1 and 4. Use -depth <1..4> or -scan-depth <1..4>\n")
+		fmt.Fprintf(os.Stderr, "Error: Scan depth must be between 1 and 4. Use -depth <1..4>\n")
 		os.Exit(1)
 	}
-	wafBypass := *wafBypassFlag || *wafBypassFlagAlt
+	wafBypass := *wafBypassFlag
 	keywordsRaw := strings.TrimSpace(*keywordsFlag)
-	if keywordsRaw == "" {
-		keywordsRaw = strings.TrimSpace(*keywordsFlagAlt)
-	}
 	extensionsRaw := strings.TrimSpace(*extensionsFlag)
-	if extensionsRaw == "" {
-		extensionsRaw = strings.TrimSpace(*extensionsFlagAlt)
-	}
 	keywords := parseCSVValues(keywordsRaw)
 	extensions := parseScanExtensions(extensionsRaw)
 	if invalidExtensions := invalidScanExtensions(extensions); len(invalidExtensions) > 0 {
@@ -853,66 +849,115 @@ func showUsage() {
 
 	fmt.Fprintf(os.Stderr, "\nUsage: jsmon [OPTIONS]\n\n")
 
+	// col is wide enough to fit the longest inline flag signature
+	// ("-issues \"page=<n> limit=<n> ...\"") plus a 12-space gap. Scans uses
+	// its own wider local column since --domains is much longer than
+	// everything else and would stretch col too far.
+	const col = 33
+	opt := func(flagText, desc string) {
+		fmt.Fprintf(os.Stderr, "  %-*s                    %s\n", col, flagText, desc)
+	}
+	cont := func(desc string) {
+		fmt.Fprintf(os.Stderr, "  %-*s                    %s\n", col, "", desc)
+	}
+	raw := func(line string) {
+		fmt.Fprintf(os.Stderr, "  %s\n", line)
+	}
+	// wrap prints a continuation of a quoted flag value, indented under the
+	// opening quote of the line above instead of the left margin, so it
+	// doesn't read as a separate flag.
+	wrap := func(indent int, line string) {
+		fmt.Fprintf(os.Stderr, "%s%s\n", strings.Repeat(" ", indent), line)
+	}
+	// alias prints the primary flag on its own line, then the alternate
+	// spelling together with the description on the next (aligned) line.
+	alias := func(primaryLine, altFlag, desc string) {
+		raw(primaryLine)
+		opt(altFlag, desc)
+	}
+
 	fmt.Fprintf(os.Stderr, "Input:\n")
-	fmt.Fprintf(os.Stderr, "  -u <input>                                  Input URL to scan\n")
-	fmt.Fprintf(os.Stderr, "  -d <input>                                  Input domain to scan\n")
-	fmt.Fprintf(os.Stderr, "  -cs <input> | -code-scan <input>            Input source code file to scan\n")
-	fmt.Fprintf(os.Stderr, "  -f <input>                                  Upload a URL list file for server-side file scan\n")
-	fmt.Fprintf(os.Stderr, "  -cw <input> | --create-workspace <input>    Create a new workspace\n\n")
+	opt("-u <input>", "Input URL to scan")
+	opt("-d <input>", "Input domain to scan")
+	alias("-cs <input> |", "-code-scan <input>", "Input source code file to scan")
+	opt("-f <input>", "Upload a URL list file for server-side file scan")
+	alias("-cw <input> |", "--create-workspace <input>", "Create a new workspace")
+	fmt.Fprintln(os.Stderr)
 
 	fmt.Fprintf(os.Stderr, "Configuration:\n")
-	fmt.Fprintf(os.Stderr, "  -key <input>                                API key (or add the API key to ~/.jsmon/credentials)\n")
-	fmt.Fprintf(os.Stderr, "                                              Visit: https://app.jsmon.sh/settings\n")
-	fmt.Fprintf(os.Stderr, "  -wksp <wksp id>                             Workspace ID to scan the target\n")
-	fmt.Fprintf(os.Stderr, "  -runId <id>                                 Existing run ID for rescan or run-scoped counts\n")
-	fmt.Fprintf(os.Stderr, "  -depth <1..4> | -scan-depth <1..4>          Optional scan depth for domain scans\n")
-	fmt.Fprintf(os.Stderr, "  -wafbypass | -waf-bypass                    Enable WAF bypass for URL, domain, and file scans\n")
-	fmt.Fprintf(os.Stderr, "  -keywords <a,b> | -scan-keywords <a,b>      Optional domain scan keywords\n")
-	fmt.Fprintf(os.Stderr, "  -extensions <a,b> | -scan-extensions <a,b>  Optional domain scan extensions\n")
-	fmt.Fprintf(os.Stderr, "  -H <input>                                  Custom HTTP headers to send along with request to scan\n")
-	fmt.Fprintf(os.Stderr, "  -silent                                     Silent the logo\n")
-	fmt.Fprintf(os.Stderr, "  -up, --update                                Check for updates and show update command\n")
-	fmt.Fprintf(os.Stderr, "  -duc, --disable-update-check                Disable automatic update check on startup\n\n")
+	opt("-key <input>", "API key (or add it to ~/.jsmon/credentials, or set JSMON_API_KEY; visit: https://app.jsmon.sh/settings)")
+	opt("-wksp <wksp id>", "Workspace ID to scan the target")
+	opt("-runId <id>", "Existing run ID for rescan or run-scoped counts")
+	opt("-depth <1..4>", "Optional scan depth for domain scans")
+	opt("-wafbypass", "Enable WAF bypass for URL, domain, and file scans")
+	opt("-keywords <a,b>", "Optional domain scan keywords")
+	opt("-extensions <a,b>", "Optional domain scan extensions")
+	opt("-H <input>", "Custom HTTP headers to send along with request to scan")
+	opt("-silent", "Silent the logo and update-check messages")
+	opt("-up, --update", "Check for updates and show update command")
+	opt("-duc, --disable-update-check", "Disable automatic update check on startup")
+	fmt.Fprintln(os.Stderr)
 
 	fmt.Fprintf(os.Stderr, "Scans:\n")
-	fmt.Fprintf(os.Stderr, "  -count                                      Show the counts of reconnaissance data and secrets count\n")
-	fmt.Fprintf(os.Stderr, "  --urls \"page=<page number> limit=<number>\"   Fetch all scanned URLs (default: page=1, limit=100)\n")
-	fmt.Fprintf(os.Stderr, "  --domains \"page=<page number> limit=<number>\" Fetch all scanned domains (default: page=1, limit=100)\n")
-	fmt.Fprintf(os.Stderr, "  --files \"page=<page number> limit=<number>\"  Fetch all scanned files (default: page=1, limit=100)\n\n")
+	// scanOpt uses its own (wider) column so --domains fits inline without
+	// stretching every other section's gap.
+	const scansCol = 45
+	scanOpt := func(flagText, desc string) {
+		fmt.Fprintf(os.Stderr, "  %-*s                    %s\n", scansCol, flagText, desc)
+	}
+	scanOpt("-count", "Show the counts of reconnaissance data and secrets count")
+	scanOpt("--urls \"page=<page number> limit=<number>\"", "Fetch all scanned URLs (default: page=1, limit=100)")
+	scanOpt("--domains \"page=<page number> limit=<number>\"", "Fetch all scanned domains (default: page=1, limit=100)")
+	scanOpt("--files \"page=<page number> limit=<number>\"", "Fetch all scanned files (default: page=1, limit=100)")
+	fmt.Fprintln(os.Stderr)
 
 	fmt.Fprintf(os.Stderr, "Advanced Scan:\n")
 	fmt.Fprintf(os.Stderr, "  Supported scan types:\n")
-	fmt.Fprintf(os.Stderr, "    -wafbypass                               URL, domain, and file scans\n")
-	fmt.Fprintf(os.Stderr, "    -depth, -keywords, -extensions           Domain scans only\n")
+	const subCol = 31
+	sub := func(flagText, desc string) {
+		fmt.Fprintf(os.Stderr, "    %-*s                    %s\n", subCol, flagText, desc)
+	}
+	sub("-wafbypass", "URL, domain, and file scans")
+	sub("-depth, -keywords, -extensions", "Domain scans only")
+	fmt.Fprintln(os.Stderr)
 	fmt.Fprintf(os.Stderr, "  Allowed extensions: html, php, txt, js, xml, json, map, xhtml, aspx\n")
+	fmt.Fprintln(os.Stderr)
 	fmt.Fprintf(os.Stderr, "  Examples:\n")
 	fmt.Fprintf(os.Stderr, "    jsmon -u \"https://example.com/app.js\" -wafbypass -wksp <wksp id>\n")
 	fmt.Fprintf(os.Stderr, "    jsmon -d \"example.com\" -depth 3 -keywords \"api,admin\" -extensions \"js,json\" -wafbypass -wksp <wksp id>\n")
-	fmt.Fprintf(os.Stderr, "    jsmon -f urls.txt -wafbypass -wksp <wksp id>\n\n")
+	fmt.Fprintf(os.Stderr, "    jsmon -f urls.txt -wafbypass -wksp <wksp id>\n")
+	fmt.Fprintln(os.Stderr)
 
 	fmt.Fprintf(os.Stderr, "Data:\n")
-	fmt.Fprintf(os.Stderr, "  -workspaces                                 Fetch all workspaces\n")
-	fmt.Fprintf(os.Stderr, "  -issues \"page=<n> limit=<n> ...\"            Fetch dashboard vulnerabilities for a workspace (default: page=1, limit=100)\n")
-	fmt.Fprintf(os.Stderr, "                                              Supported options: severity, dateFrom, dateTo\n")
-	fmt.Fprintf(os.Stderr, "                                              Example: -issues \"page=1 limit=20 severity=critical,high dateFrom=2026-04-01 dateTo=2026-04-14\"\n")
-	fmt.Fprintf(os.Stderr, "  -secrets \"page=<number> limit=<number> runId=<id> version=<n>\"\n")
-	fmt.Fprintf(os.Stderr, "                                              Fetch all secrets for a workspace (default: page=1, limit=100)\n")
-	fmt.Fprintf(os.Stderr, "  -recon \"field=<name> page=<number> limit=<number> runId=<id> version=<n>\"\n")
-	fmt.Fprintf(os.Stderr, "                                              Fetch the reconnaissance data (default: page=1, limit=100)\n")
-	fmt.Fprintf(os.Stderr, "                                              Example: -recon \"field=extractedUrls page=3 limit=50\"\n\n")
+	opt("-workspaces", "Fetch all workspaces")
+	opt("-issues \"page=<n> limit=<n> ...\"", "Fetch dashboard vulnerabilities for a workspace (default: page=1, limit=100)")
+	cont("Supported options: severity, dateFrom, dateTo")
+	cont("Example: -issues \"page=1 limit=20 severity=critical,high dateFrom=2026-04-01 dateTo=2026-04-14\"")
+	raw("-secrets \"page=<number> limit=<number>")
+	wrap(12, "runId=<id> version=<n>\"")
+	cont("Fetch all secrets for a workspace (default: page=1, limit=100)")
+	raw("-recon \"field=<name> page=<number> limit=<number>")
+	wrap(10, "runId=<id> version=<n>\"")
+	cont("Fetch the reconnaissance data (default: page=1, limit=100)")
+	cont("Example: -recon \"field=extractedUrls page=3 limit=50\"")
+	fmt.Fprintln(os.Stderr)
 
 	fmt.Fprintf(os.Stderr, "Reverse Search:\n")
-	fmt.Fprintf(os.Stderr, "  -rsearch \"<field name>=<value>\"             Search the source of the result where it comes from\n")
-	fmt.Fprintf(os.Stderr, "                                              Example: -rsearch \"apipaths=@azure/msal-browser\"\n\n")
+	opt("-rsearch \"<field name>=<value>\"", "Search the source of the result where it comes from")
+	cont("Example: -rsearch \"apipaths=@azure/msal-browser\"")
+	fmt.Fprintln(os.Stderr)
 
 	fmt.Fprintf(os.Stderr, "Filter:\n")
-	fmt.Fprintf(os.Stderr, "  -filters \"<fieldname>=<keyword> page=<number> limit=<number> runId=<id> version=<n>\"\n")
-	fmt.Fprintf(os.Stderr, "                                                    Match keywords in the field data in reconnaissance results\n")
-	fmt.Fprintf(os.Stderr, "                                                    (default: page=1, limit=100)\n")
-	fmt.Fprintf(os.Stderr, "                                                    Example: -filters \"urls=github.com page=2 limit=50\"\n\n")
+	raw("-filters \"<fieldname>=<keyword> page=<number> limit=<number>")
+	wrap(12, "runId=<id> version=<n>\"")
+	cont("Match keywords in the field data in reconnaissance results")
+	cont("(default: page=1, limit=100)")
+	cont("Example: -filters \"urls=github.com page=2 limit=50\"")
+	fmt.Fprintln(os.Stderr)
 
 	fmt.Fprintf(os.Stderr, "Help:\n")
-	fmt.Fprintf(os.Stderr, "  -h, --help                                  Show this help message\n\n")
+	opt("-h, --help", "Show this help message")
+	fmt.Fprintln(os.Stderr)
 
 	fmt.Fprintf(os.Stderr, "Field Names:\n")
 	fmt.Fprintf(os.Stderr, "  -recon, -rsearch:\n")

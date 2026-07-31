@@ -76,7 +76,7 @@ Get your API key from [Jsmon](https://app.jsmon.sh/settings). The CLI looks for 
 | 2 | File: `~/.jsmon/credentials` |
 | 3 | Environment: `JSMON_API_KEY` |
 
-**Credentials file:** Create `~/.jsmon/credentials` and put your API key on the first line (no label). Lines starting with `#` are ignored.
+**Credentials file:** Create `~/.jsmon/credentials` with a line like `API_KEY='YOUR_API_KEY'` (quotes optional). Lines starting with `#` are ignored. For backwards compatibility, putting the API key alone on its own line (no label) also still works.
 
 ### Workspace ID
 
@@ -90,11 +90,11 @@ The workspace ID is **not** read from the credentials file; it must be provided 
 ### Optional
 
 - **`-H "Header-Name: value"`** — Add custom HTTP headers for scan requests (can be used multiple times).
-- **`-silent`** — Hide the Jsmon logo when running commands.
-- **`-depth 1..4` / `-scan-depth 1..4`** — Control domain scan depth.
-- **`-wafbypass` / `-waf-bypass`** — Enable WAF bypass for URL, domain, and file scans.
-- **`-keywords "api,admin"` / `-scan-keywords "api,admin"`** — Add domain scan keywords.
-- **`-extensions "js,json"` / `-scan-extensions "js,json"`** — Limit domain scans to supported extensions.
+- **`-silent`** — Hide the Jsmon logo and suppress the update-check notice when running commands.
+- **`-depth 1..4`** — Control domain scan depth.
+- **`-wafbypass`** — Enable WAF bypass for URL, domain, and file scans.
+- **`-keywords "api,admin"`** — Add domain scan keywords.
+- **`-extensions "js,json"`** — Limit domain scans to supported extensions.
 
 Scan commands submit work to Jsmon's asynchronous pipeline. The CLI prints the queued `runId` and `version`; use those values with read commands when you want run-scoped or version-specific results.
 
@@ -108,64 +108,71 @@ Scan commands submit work to Jsmon's asynchronous pipeline. The CLI prints the q
 Usage: jsmon [OPTIONS]
 
 Input:
-  -u <input>                                  Input URL to scan
-  -d <input>                                  Input domain to scan
-  -cs <input> | -code-scan <input>            Input source code file to scan
-  -f <input>                                  Upload a URL list file for server-side file scan
-  -cw <input> | --create-workspace <input>    Create a new workspace
+  -u <input>                                           Input URL to scan
+  -d <input>                                           Input domain to scan
+  -cs <input> |
+  -code-scan <input>                                   Input source code file to scan
+  -f <input>                                           Upload a URL list file for server-side file scan
+  -cw <input> |
+  --create-workspace <input>                           Create a new workspace
 
 Configuration:
-  -key <input>                                API key (or add the API key to ~/.jsmon/credentials)
-                                              Visit: https://app.jsmon.sh/settings
-  -wksp <wksp id>                             Workspace ID to scan the target
-  -runId <id>                                 Existing run ID for rescan or run-scoped counts
-  -depth <1..4> | -scan-depth <1..4>          Optional scan depth for domain scans
-  -wafbypass | -waf-bypass                    Enable WAF bypass for URL, domain, and file scans
-  -keywords <a,b> | -scan-keywords <a,b>      Optional domain scan keywords
-  -extensions <a,b> | -scan-extensions <a,b>  Optional domain scan extensions
-  -H <input>                                  Custom HTTP headers to send along with request to scan
-  -silent                                     Silent the logo
-  -up, --update                                Check for updates and show update command
-  -duc, --disable-update-check                Disable automatic update check on startup
+  -key <input>                                         API key (or add it to ~/.jsmon/credentials, or set JSMON_API_KEY; visit: https://app.jsmon.sh/settings)
+  -wksp <wksp id>                                      Workspace ID to scan the target
+  -runId <id>                                          Existing run ID for rescan or run-scoped counts
+  -depth <1..4>                                        Optional scan depth for domain scans
+  -wafbypass                                           Enable WAF bypass for URL, domain, and file scans
+  -keywords <a,b>                                      Optional domain scan keywords
+  -extensions <a,b>                                    Optional domain scan extensions
+  -H <input>                                           Custom HTTP headers to send along with request to scan
+  -silent                                              Silent the logo and update-check messages
+  -up, --update                                        Check for updates and show update command
+  -duc, --disable-update-check                         Disable automatic update check on startup
 
 Scans:
-  -count                                      Show the counts of reconnaissance data and secrets count
-  --urls "page=<page number> limit=<number>"   Fetch all scanned URLs (default: page=1, limit=100)
-  --domains "page=<page number> limit=<number>" Fetch all scanned domains (default: page=1, limit=100)
-  --files "page=<page number> limit=<number>"  Fetch all scanned files (default: page=1, limit=100)
+  -count                                                           Show the counts of reconnaissance data and secrets count
+  --urls "page=<page number> limit=<number>"                       Fetch all scanned URLs (default: page=1, limit=100)
+  --domains "page=<page number> limit=<number>"                    Fetch all scanned domains (default: page=1, limit=100)
+  --files "page=<page number> limit=<number>"                      Fetch all scanned files (default: page=1, limit=100)
 
 Advanced Scan:
   Supported scan types:
-    -wafbypass                               URL, domain, and file scans
-    -depth, -keywords, -extensions           Domain scans only
+    -wafbypass                                         URL, domain, and file scans
+    -depth, -keywords, -extensions                     Domain scans only
+
   Allowed extensions: html, php, txt, js, xml, json, map, xhtml, aspx
+
   Examples:
     jsmon -u "https://example.com/app.js" -wafbypass -wksp <wksp id>
     jsmon -d "example.com" -depth 3 -keywords "api,admin" -extensions "js,json" -wafbypass -wksp <wksp id>
     jsmon -f urls.txt -wafbypass -wksp <wksp id>
 
 Data:
-  -workspaces                                 Fetch all workspaces
-  -issues "page=<n> limit=<n> ..."            Fetch dashboard vulnerabilities for a workspace (default: page=1, limit=100)
-                                              Supported options: severity, dateFrom, dateTo
-  -secrets "page=<number> limit=<number> runId=<id> version=<n>"
-                                              Fetch all secrets for a workspace (default: page=1, limit=100)
-  -recon "field=<name> page=<number> limit=<number> runId=<id> version=<n>"
-                                              Fetch the reconnaissance data (default: page=1, limit=100)
-                                              Example: -recon "field=extractedUrls page=3 limit=50"
+  -workspaces                                          Fetch all workspaces
+  -issues "page=<n> limit=<n> ..."                     Fetch dashboard vulnerabilities for a workspace (default: page=1, limit=100)
+                                                       Supported options: severity, dateFrom, dateTo
+                                                       Example: -issues "page=1 limit=20 severity=critical,high dateFrom=2026-04-01 dateTo=2026-04-14"
+  -secrets "page=<number> limit=<number>
+            runId=<id> version=<n>"
+                                                       Fetch all secrets for a workspace (default: page=1, limit=100)
+  -recon "field=<name> page=<number> limit=<number>
+          runId=<id> version=<n>"
+                                                       Fetch the reconnaissance data (default: page=1, limit=100)
+                                                       Example: -recon "field=extractedUrls page=3 limit=50"
 
 Reverse Search:
-  -rsearch "<field name>=<value>"             Search the source of the result where it comes from
-                                              Example: -rsearch "apipaths=@azure/msal-browser"
+  -rsearch "<field name>=<value>"                      Search the source of the result where it comes from
+                                                       Example: -rsearch "apipaths=@azure/msal-browser"
 
 Filter:
-  -filters "<fieldname>=<keyword> page=<number> limit=<number> runId=<id> version=<n>"
-                                                    Match keywords in the field data in reconnaissance results
-                                                    (default: page=1, limit=100)
-                                                    Example: -filters "urls=github.com page=2 limit=50"
+  -filters "<fieldname>=<keyword> page=<number> limit=<number>
+            runId=<id> version=<n>"
+                                                       Match keywords in the field data in reconnaissance results
+                                                       (default: page=1, limit=100)
+                                                       Example: -filters "urls=github.com page=2 limit=50"
 
 Help:
-  -h, --help                                  Show this help message
+  -h, --help                                           Show this help message
 
 Field Names:
   -recon, -rsearch:
