@@ -15,7 +15,7 @@ import (
 
 const (
 	// Version is the current version of the CLI (must match the latest release tag)
-	Version = "2.1.2"
+	Version = "2.1.3"
 	// GitHubRepo is the repository for checking updates
 	GitHubRepo = "jsmonhq/jsmon-cli"
 	// InstallModule is the Go command package path users install from.
