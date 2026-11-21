@@ -630,16 +630,17 @@ type Workspace struct {
 	Owner    string `json:"owner"`
 }
 
-// GetWorkspacesResponse represents the response from getWorkspaces
+// GetWorkspacesResponse represents the response from getWorkspacesOverview (and the legacy getWorkspaces)
 type GetWorkspacesResponse struct {
 	Message    string      `json:"message"`
 	Workspaces []Workspace `json:"workspaces"`
 	Total      int         `json:"total"`
 }
 
-// GetWorkspaces retrieves all workspaces for the user
+// GetWorkspaces retrieves the workspaces for the user from /getWorkspacesOverview, the endpoint the web app
+// uses. It returns every field the older (deprecated) /getWorkspaces did, plus isShared and more.
 func (c *Client) GetWorkspaces() (*GetWorkspacesResponse, error) {
-	endpoint := APIBaseURL + "/getWorkspaces"
+	endpoint := APIBaseURL + "/getWorkspacesOverview"
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
