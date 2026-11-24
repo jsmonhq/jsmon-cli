@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "contextos": {
+      "command": "contextos",
+      "args": [
+        "serve"
+      ],
+      "env": {
+        "CONTEXTOS_REPO_ROOT": "/Users/siddhartha/Documents/code/worktrees/jsmon-cli-workspaces-overview",
+        "CONTEXTOS_WORKSPACE": ""
+      }
+    }
+  }
+}
